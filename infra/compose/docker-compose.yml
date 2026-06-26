@@ -1,0 +1,100 @@
+name: opspilot
+
+services:
+  opspilot-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: opspilot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${OPSPILOT_POSTGRES_USER:-opspilot}
+      POSTGRES_PASSWORD: ${OPSPILOT_POSTGRES_PASSWORD:-opspilot}
+      POSTGRES_DB: ${OPSPILOT_POSTGRES_DB:-opspilot}
+    ports:
+      - "5432:5432"
+    volumes:
+      - opspilot_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: opspilot-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  opspilot-api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: opspilot-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgres://opspilot:opspilot@opspilot-postgres:5432/opspilot
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5:7b-instruct}
+      LANGFUSE_BASE_URL: http://langfuse-web:3000
+    ports:
+      - "4000:4000"
+    depends_on:
+      opspilot-postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://localhost:4000/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  opspilot-web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+    container_name: opspilot-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      WEB_PUBLIC_API_URL: http://localhost:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      opspilot-api:
+        condition: service_started
+
+  opspilot-demo-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/demo-service.Dockerfile
+    container_name: opspilot-demo-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4100
+      OPSPILOT_API_URL: http://opspilot-api:4000
+    ports:
+      - "4100:4100"
+    depends_on:
+      opspilot-api:
+        condition: service_started
+
+volumes:
+  opspilot_postgres_data:
+  ollama_data:

@@ -49,6 +49,47 @@ corepack pnpm test
 corepack pnpm build
 ```
 
+## Docker Compose foundation
+
+Issue #2 adds local Docker Compose infrastructure for the V1 vertical slice:
+
+- OpsPilot scaffold services: web (`3000`), API (`4000`), demo-service (`4100`)
+- PostgreSQL with pgvector (`5432`)
+- Ollama (`11434`)
+- Langfuse web (`3001`) plus worker, Langfuse Postgres, ClickHouse, Redis, and MinIO
+
+Validate Compose configuration:
+
+```bash
+pnpm docker:config
+```
+
+Build the OpsPilot app images:
+
+```bash
+pnpm docker:build
+```
+
+Start the full local stack:
+
+```bash
+pnpm docker:up
+```
+
+Stop it:
+
+```bash
+pnpm docker:down
+```
+
+Pull the default local AI models after Ollama is running:
+
+```bash
+./scripts/ollama/pull-models.sh
+```
+
+The Langfuse development bootstrap credentials in `.env.example` are intentionally insecure and must not be reused outside local development.
+
 ## Architecture source of truth
 
 The frozen V1 architecture is documented in:
