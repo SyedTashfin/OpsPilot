@@ -8,12 +8,14 @@ import { createDatabasePool } from "./plugins/db.js";
 import { registerDemoRoutes } from "./routes/demo.routes.js";
 import { registerHealthRoutes } from "./routes/health.routes.js";
 import { registerIncidentRoutes } from "./routes/incidents.routes.js";
+import { registerInvestigationRoutes } from "./routes/investigations.routes.js";
 import { registerLLMRoutes } from "./routes/llm.routes.js";
 import { registerLogRoutes } from "./routes/logs.routes.js";
 import { registerRunbookRoutes } from "./routes/runbooks.routes.js";
 import { registerServiceRoutes } from "./routes/services.routes.js";
 import { DemoRepository } from "./modules/demo/demo.repository.js";
 import { IncidentRepository } from "./modules/incidents/incident.repository.js";
+import { InvestigationRepository, InvestigationWorkflow } from "./modules/investigations/index.js";
 import { LogRepository } from "./modules/logs/log.repository.js";
 import { ServiceRepository } from "./modules/services/service.repository.js";
 import { RunbookRagService, createEmbeddingClient, loadRagConfig } from "@opspilot/rag";
@@ -38,6 +40,7 @@ export async function buildServer(
   const services = new ServiceRepository(pool);
   const logs = new LogRepository(pool);
   const incidents = new IncidentRepository(pool);
+  const investigationRepository = new InvestigationRepository(pool);
   const demo = new DemoRepository(pool);
   const rag = new RunbookRagService(pool, createEmbeddingClient(loadRagConfig()));
   const llm = createLLMClient({
@@ -47,12 +50,14 @@ export async function buildServer(
     credential: config.llmCredential,
     geminiModel: config.geminiModel,
   });
+  const investigationWorkflow = new InvestigationWorkflow(investigationRepository, rag, llm);
 
   registerHealthRoutes(app, pool, config);
   registerServiceRoutes(app, services);
   registerLogRoutes(app, logs);
   registerLLMRoutes(app, llm);
   registerIncidentRoutes(app, incidents);
+  registerInvestigationRoutes(app, investigationWorkflow);
   registerDemoRoutes(app, demo, logs, incidents);
   registerRunbookRoutes(app, rag);
 

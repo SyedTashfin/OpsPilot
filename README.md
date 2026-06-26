@@ -132,6 +132,16 @@ API search endpoint:
 GET /api/runbooks/search?q=feature%20store%20timeout&limit=5
 ```
 
+## Investigation workflow
+
+Issue #8 adds the first single-agent investigation workflow. It is intentionally deterministic: the application loads the incident, queries logs, summarizes metrics, loads deployment context, retrieves runbook chunks, then makes exactly one LLM call with a structured JSON-output prompt.
+
+```text
+POST /api/incidents/:incidentId/investigations
+```
+
+The returned report contains `summary`, `probableRootCause`, `confidence`, `evidence[]`, `citedRunbooks[]`, and `recommendedNextDiagnostics`. The workflow does not perform remediation, infrastructure changes, autonomous retries, chat, memory, Langfuse tracing, or dashboard work.
+
 ## Project management
 
 GitHub Issues are the source of truth for implementation planning and execution. Do not use local Markdown issue files as the primary task tracker.
