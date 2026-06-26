@@ -1,0 +1,19 @@
+{
+  "name": "@opspilot/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpsPilot web dashboard placeholder.",
+  "type": "module",
+  "main": "dist/main.js",
+  "types": "dist/main.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/main.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}
