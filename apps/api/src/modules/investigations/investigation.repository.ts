@@ -62,6 +62,13 @@ export class InvestigationRepository {
     return id;
   }
 
+  async setLangfuseTraceId(investigationId: string, traceId: string): Promise<void> {
+    await this.pool.query(`UPDATE investigations SET langfuse_trace_id = $2 WHERE id = $1;`, [
+      investigationId,
+      traceId,
+    ]);
+  }
+
   async queryLogs(incident: IncidentContext): Promise<InvestigationLogEntry[]> {
     const result = await this.pool.query<InvestigationLogEntry>(
       `SELECT l.id,
@@ -126,6 +133,7 @@ export class InvestigationRepository {
               inv.provider,
               inv.model,
               inv.prompt_version AS "promptVersion",
+              inv.langfuse_trace_id AS "langfuseTraceId",
               inv.started_at AS "startedAt",
               inv.completed_at AS "completedAt",
               inv.latency_ms AS "latencyMs",
@@ -162,6 +170,7 @@ export class InvestigationRepository {
     if (!detail) return null;
     return {
       investigationId: detail.id,
+      langfuseTraceId: detail.langfuseTraceId,
       incidentId: detail.incidentId,
       incidentTitle: detail.incidentTitle,
       serviceName: detail.serviceName,

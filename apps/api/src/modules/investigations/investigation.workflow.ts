@@ -1,4 +1,9 @@
-import type { LLMClient } from "@opspilot/llm";
+import type { LLMClient, LLMChatResponse } from "@opspilot/llm";
+import {
+  NoopInvestigationObserver,
+  type InvestigationObserver,
+  type InvestigationTraceContext,
+} from "@opspilot/telemetry";
 import type { RunbookSearchResult } from "@opspilot/rag";
 import { INVESTIGATION_PROMPT_VERSION, buildInvestigationPrompt } from "./investigation.prompt.js";
 import type { InvestigationRepository } from "./investigation.repository.js";
@@ -13,6 +18,7 @@ export class InvestigationWorkflow {
     private readonly repository: InvestigationRepository,
     private readonly runbooks: RunbookSearchService,
     private readonly llm: LLMClient,
+    private readonly observer: InvestigationObserver = new NoopInvestigationObserver(),
   ) {}
 
   async investigate(incidentId: string): Promise<InvestigationResult> {
@@ -26,15 +32,30 @@ export class InvestigationWorkflow {
       model: this.llm.model,
       promptVersion: INVESTIGATION_PROMPT_VERSION,
     });
+    const trace = await this.observer.startInvestigation({
+      investigationId,
+      incidentId,
+      serviceName: incident.serviceName,
+      provider: this.llm.provider,
+      model: this.llm.model,
+      promptVersion: INVESTIGATION_PROMPT_VERSION,
+    });
+    if (trace.traceId) await this.repository.setLangfuseTraceId(investigationId, trace.traceId);
 
     try {
-      const logs = await this.runTool(investigationId, 1, "query_logs", { incidentId }, () =>
+      const logs = await this.runTool(trace, investigationId, 1, "query_logs", { incidentId }, () =>
         this.repository.queryLogs(incident),
       );
-      const metrics = await this.runTool(investigationId, 2, "query_metrics", { incidentId }, () =>
-        this.repository.queryMetrics(incident),
+      const metrics = await this.runTool(
+        trace,
+        investigationId,
+        2,
+        "query_metrics",
+        { incidentId },
+        () => this.repository.queryMetrics(incident),
       );
       const deployments = await this.runTool(
+        trace,
         investigationId,
         3,
         "get_deployments",
@@ -45,6 +66,7 @@ export class InvestigationWorkflow {
         " ",
       );
       const runbooks = await this.runTool(
+        trace,
         investigationId,
         4,
         "search_runbooks",
@@ -75,12 +97,67 @@ export class InvestigationWorkflow {
         metadata: { promptVersion: INVESTIGATION_PROMPT_VERSION },
       });
 
-      const response = await this.llm.chat({
-        messages: [...prompt],
+      const generationStartedAt = Date.now();
+      const generationStartTime = new Date(generationStartedAt);
+      let response: LLMChatResponse;
+      try {
+        response = await this.llm.chat({
+          messages: [...prompt],
+          temperature: 0.1,
+          maxTokens: 1200,
+        });
+      } catch (error) {
+        await this.recordGeneration(trace, {
+          investigationId,
+          provider: this.llm.provider,
+          model: this.llm.model,
+          prompt,
+          completion: null,
+          latencyMs: Date.now() - generationStartedAt,
+          startedAt: generationStartTime,
+          endedAt: new Date(),
+          temperature: 0.1,
+          tokenUsage: undefined,
+          structuredOutputSuccess: false,
+          errorMessage: error instanceof Error ? error.message : "LLM generation failed.",
+        });
+        throw error;
+      }
+
+      let report;
+      try {
+        report = await this.parseReportOrPersistFailure(investigationId, response.content);
+      } catch (error) {
+        await this.recordGeneration(trace, {
+          investigationId,
+          provider: response.provider,
+          model: response.model,
+          prompt,
+          completion: response.content,
+          latencyMs: Date.now() - generationStartedAt,
+          startedAt: generationStartTime,
+          endedAt: new Date(),
+          temperature: 0.1,
+          tokenUsage: response.usage,
+          structuredOutputSuccess: false,
+          errorMessage:
+            error instanceof Error ? error.message : "Structured output validation failed.",
+        });
+        throw error;
+      }
+      await this.recordGeneration(trace, {
+        investigationId,
+        provider: response.provider,
+        model: response.model,
+        prompt,
+        completion: response.content,
+        latencyMs: Date.now() - generationStartedAt,
+        startedAt: generationStartTime,
+        endedAt: new Date(),
         temperature: 0.1,
-        maxTokens: 1200,
+        tokenUsage: response.usage,
+        structuredOutputSuccess: true,
       });
-      const report = await this.parseReportOrPersistFailure(investigationId, response.content);
 
       await this.repository.recordStep({
         investigationId,
@@ -90,11 +167,26 @@ export class InvestigationWorkflow {
         content: JSON.stringify(report, null, 2),
         metadata: { usage: response.usage, model: response.model, provider: response.provider },
       });
+      const durationMs = Date.now() - startedAt;
       await this.repository.completeInvestigation({
         investigationId,
         report,
-        latencyMs: Date.now() - startedAt,
+        latencyMs: durationMs,
       });
+      await this.observer.completeInvestigation(trace, {
+        investigationId,
+        durationMs,
+        success: true,
+        status: "completed",
+        confidenceScore: report.confidence,
+        citedRunbooks: report.citedRunbooks.map((runbook) => ({
+          title: runbook.title,
+          slug: runbook.slug,
+          ...(runbook.chunkId ? { chunkId: runbook.chunkId } : {}),
+        })),
+        evidenceCount: report.evidence.length,
+      });
+      await this.observer.flush();
 
       return { investigationId, report };
     } catch (error) {
@@ -102,6 +194,14 @@ export class InvestigationWorkflow {
         investigationId,
         error: error instanceof Error ? error.message : "Investigation failed.",
       });
+      await this.observer.completeInvestigation(trace, {
+        investigationId,
+        durationMs: Date.now() - startedAt,
+        success: false,
+        status: "failed",
+        errorMessage: error instanceof Error ? error.message : "Investigation failed.",
+      });
+      await this.observer.flush();
       throw error;
     }
   }
@@ -121,6 +221,7 @@ export class InvestigationWorkflow {
   }
 
   private async runTool<T>(
+    trace: InvestigationTraceContext,
     investigationId: string,
     stepIndex: number,
     toolName: "query_logs" | "query_metrics" | "get_deployments" | "search_runbooks",
@@ -128,6 +229,7 @@ export class InvestigationWorkflow {
     execute: () => Promise<T>,
   ): Promise<T> {
     const startedAt = Date.now();
+    const toolStartTime = new Date(startedAt);
     try {
       const output = await execute();
       const latencyMs = Date.now() - startedAt;
@@ -138,6 +240,15 @@ export class InvestigationWorkflow {
         output,
         status: "success",
         latencyMs,
+      });
+      await this.observer.recordTool(trace, {
+        investigationId,
+        toolName,
+        latencyMs,
+        startedAt: toolStartTime,
+        endedAt: new Date(),
+        success: true,
+        metadata: this.summarizeToolOutput(output),
       });
       await this.repository.recordStep({
         investigationId,
@@ -158,7 +269,29 @@ export class InvestigationWorkflow {
         status: "error",
         latencyMs,
       });
+      await this.observer.recordTool(trace, {
+        investigationId,
+        toolName,
+        latencyMs,
+        startedAt: toolStartTime,
+        endedAt: new Date(),
+        success: false,
+        metadata: { errorName: error instanceof Error ? error.name : "unknown" },
+      });
       throw error;
     }
+  }
+
+  private recordGeneration(
+    trace: InvestigationTraceContext,
+    event: Parameters<InvestigationObserver["recordGeneration"]>[1],
+  ): Promise<void> {
+    return this.observer.recordGeneration(trace, event);
+  }
+
+  private summarizeToolOutput(output: unknown): Record<string, unknown> {
+    if (Array.isArray(output)) return { resultCount: output.length };
+    if (output && typeof output === "object") return { resultType: "object" };
+    return { resultType: typeof output };
   }
 }

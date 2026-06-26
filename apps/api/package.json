@@ -17,11 +17,12 @@
     "@fastify/cors": "^10.0.2",
     "@opspilot/contracts": "workspace:*",
     "@opspilot/database": "workspace:*",
+    "@opspilot/llm": "workspace:*",
+    "@opspilot/rag": "workspace:*",
+    "@opspilot/telemetry": "workspace:*",
     "fastify": "^5.1.0",
     "pg": "^8.13.1",
-    "zod": "^3.24.1",
-    "@opspilot/rag": "workspace:*",
-    "@opspilot/llm": "workspace:*"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/pg": "^8.11.11",

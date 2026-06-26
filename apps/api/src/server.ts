@@ -3,6 +3,11 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type pg from "pg";
 import { runMigrations } from "@opspilot/database";
 import { createLLMClient, type LLMClient } from "@opspilot/llm";
+import {
+  SafeInvestigationObserver,
+  createInvestigationObserver,
+  type InvestigationObserver,
+} from "@opspilot/telemetry";
 import type { ApiConfig } from "./config.js";
 import { createDatabasePool } from "./plugins/db.js";
 import { registerDemoRoutes } from "./routes/demo.routes.js";
@@ -23,6 +28,7 @@ import { RunbookRagService, createEmbeddingClient, loadRagConfig } from "@opspil
 export type ServerDependencies = {
   readonly pool?: pg.Pool;
   readonly llm?: LLMClient;
+  readonly investigationObserver?: InvestigationObserver;
 };
 
 export async function buildServer(
@@ -54,7 +60,28 @@ export async function buildServer(
       geminiModel: config.geminiModel,
       timeoutMs: config.llmTimeoutMs,
     });
-  const investigationWorkflow = new InvestigationWorkflow(investigationRepository, rag, llm);
+  const rawObserver =
+    dependencies.investigationObserver ??
+    createInvestigationObserver({
+      enabled:
+        config.langfuseEnabled ?? Boolean(config.langfusePublicKey && config.langfuseSecretKey),
+      ...(config.langfusePublicKey ? { publicKey: config.langfusePublicKey } : {}),
+      ...(config.langfuseSecretKey ? { secretKey: config.langfuseSecretKey } : {}),
+      baseUrl: config.langfuseBaseUrl,
+      environment: config.langfuseEnvironment,
+    });
+  const observer = new SafeInvestigationObserver(rawObserver, (error, action) => {
+    app.log.warn(
+      { error, action },
+      "Langfuse telemetry failed; continuing investigation workflow.",
+    );
+  });
+  const investigationWorkflow = new InvestigationWorkflow(
+    investigationRepository,
+    rag,
+    llm,
+    observer,
+  );
 
   registerHealthRoutes(app, pool, config);
   registerServiceRoutes(app, services);
@@ -66,6 +93,7 @@ export async function buildServer(
   registerRunbookRoutes(app, rag);
 
   app.addHook("onClose", async () => {
+    await observer.flush();
     if (!dependencies.pool) await pool.end();
   });
 

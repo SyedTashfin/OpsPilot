@@ -1,5 +1,10 @@
 import type { LLMChatRequest, LLMChatResponse, LLMClient, LLMProviderHealth } from "@opspilot/llm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import {
+  SafeInvestigationObserver,
+  type InvestigationObserver,
+  type InvestigationTraceContext,
+} from "@opspilot/telemetry";
 import { InvestigationWorkflow, type RunbookSearchService } from "./investigation.workflow.js";
 import type { InvestigationRepository } from "./investigation.repository.js";
 import type { IncidentContext } from "./investigation.types.js";
@@ -23,6 +28,7 @@ class FakeInvestigationRepository {
   readonly toolNames: string[] = [];
   readonly steps: string[] = [];
   completedReport: unknown;
+  langfuseTraceId: string | undefined;
   invalidModelResponse: { rawResponse: string; parserError: string } | undefined;
 
   getIncident(): Promise<IncidentContext> {
@@ -31,6 +37,11 @@ class FakeInvestigationRepository {
 
   createInvestigation(): Promise<string> {
     return Promise.resolve("investigation-1");
+  }
+
+  setLangfuseTraceId(_investigationId: string, traceId: string): Promise<void> {
+    this.langfuseTraceId = traceId;
+    return Promise.resolve();
   }
 
   queryLogs() {
@@ -189,6 +200,61 @@ class FakeLLM implements LLMClient {
   }
 }
 
+class RecordingObserver implements InvestigationObserver {
+  readonly starts: unknown[] = [];
+  readonly tools: unknown[] = [];
+  readonly generations: unknown[] = [];
+  readonly completions: unknown[] = [];
+  flushCount = 0;
+
+  startInvestigation(event: unknown): Promise<InvestigationTraceContext> {
+    this.starts.push(event);
+    return Promise.resolve({ traceId: "investigation-1" });
+  }
+
+  recordTool(_context: InvestigationTraceContext, event: unknown): Promise<void> {
+    this.tools.push(event);
+    return Promise.resolve();
+  }
+
+  recordGeneration(_context: InvestigationTraceContext, event: unknown): Promise<void> {
+    this.generations.push(event);
+    return Promise.resolve();
+  }
+
+  completeInvestigation(_context: InvestigationTraceContext, event: unknown): Promise<void> {
+    this.completions.push(event);
+    return Promise.resolve();
+  }
+
+  flush(): Promise<void> {
+    this.flushCount += 1;
+    return Promise.resolve();
+  }
+}
+
+class FailingObserver implements InvestigationObserver {
+  startInvestigation(): Promise<InvestigationTraceContext> {
+    return Promise.reject(new Error("Langfuse unavailable"));
+  }
+
+  recordTool(): Promise<void> {
+    return Promise.reject(new Error("Langfuse unavailable"));
+  }
+
+  recordGeneration(): Promise<void> {
+    return Promise.reject(new Error("Langfuse unavailable"));
+  }
+
+  completeInvestigation(): Promise<void> {
+    return Promise.reject(new Error("Langfuse unavailable"));
+  }
+
+  flush(): Promise<void> {
+    return Promise.reject(new Error("Langfuse unavailable"));
+  }
+}
+
 describe("InvestigationWorkflow", () => {
   it("runs the deterministic BeautyCorp investigation sequence and persists the report", async () => {
     const repository = new FakeInvestigationRepository();
@@ -233,6 +299,60 @@ describe("InvestigationWorkflow", () => {
     expect(repository.completedReport).toEqual(result.report);
     expect(llm.requests[0]?.messages[1]?.content).toContain("requiredToolSequenceAlreadyCompleted");
     expect(llm.requests[0]?.messages[1]?.content).toContain("No remediation actions");
+  });
+
+  it("records investigation trace, tool observations, generation, and completion when enabled", async () => {
+    const repository = new FakeInvestigationRepository();
+    const observer = new RecordingObserver();
+    const workflow = new InvestigationWorkflow(
+      repository as unknown as InvestigationRepository,
+      new FakeRunbooks(),
+      new FakeLLM(),
+      observer,
+    );
+
+    await workflow.investigate("incident-1");
+
+    expect(repository.langfuseTraceId).toBe("investigation-1");
+    expect(observer.starts).toHaveLength(1);
+    expect(observer.tools).toHaveLength(4);
+    expect(observer.tools).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ toolName: "query_logs", success: true }),
+        expect.objectContaining({ toolName: "query_metrics", success: true }),
+        expect.objectContaining({ toolName: "get_deployments", success: true }),
+        expect.objectContaining({ toolName: "search_runbooks", success: true }),
+      ]),
+    );
+    expect(observer.generations).toEqual([
+      expect.objectContaining({
+        provider: "ollama",
+        model: "test-model",
+        structuredOutputSuccess: true,
+        temperature: 0.1,
+      }),
+    ]);
+    expect(observer.completions).toEqual([
+      expect.objectContaining({ status: "completed", confidenceScore: 0.86, evidenceCount: 3 }),
+    ]);
+    expect(observer.flushCount).toBe(1);
+  });
+
+  it("continues the investigation when Langfuse is unavailable", async () => {
+    const warn = vi.fn();
+    const repository = new FakeInvestigationRepository();
+    const workflow = new InvestigationWorkflow(
+      repository as unknown as InvestigationRepository,
+      new FakeRunbooks(),
+      new FakeLLM(),
+      new SafeInvestigationObserver(new FailingObserver(), warn),
+    );
+
+    const result = await workflow.investigate("incident-1");
+
+    expect(result.report.probableRootCause).toContain("feature-store timeout");
+    expect(repository.completedReport).toEqual(result.report);
+    expect(warn).toHaveBeenCalled();
   });
 
   it("persists raw model response and parser error when JSON parsing fails", async () => {
