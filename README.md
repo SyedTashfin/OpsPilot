@@ -86,6 +86,21 @@ Issue #4 adds deterministic synthetic data generation for the fictional company 
 
 Issue #5 replaces the placeholder API with Fastify routes for health, services, logs, demo telemetry ingest, and V1 incident detection. Local Docker startup runs migrations automatically by default through `API_AUTO_MIGRATE=true`; set it to `false` if you want to manage migrations explicitly.
 
+## Runbook RAG
+
+Issue #6 adds repeatable runbook ingestion and pgvector retrieval for investigation context. Default embeddings use Ollama; deterministic embeddings are available only for local smoke tests.
+
+```bash
+pnpm rag:ingest
+pnpm rag:search "feature store timeout recommendation latency"
+```
+
+API search endpoint:
+
+```text
+GET /api/runbooks/search?q=feature%20store%20timeout&limit=5
+```
+
 ## Project management
 
 GitHub Issues are the source of truth for implementation planning and execution. Do not use local Markdown issue files as the primary task tracker.
@@ -99,3 +114,4 @@ GitHub Issues are the source of truth for implementation planning and execution.
 - `docs/adr/0001-monorepo.md`
 - `docs/adr/0002-langfuse-observability.md`
 - `docs/architecture/database-schema.md`
+- `docs/architecture/runbook-rag.md`

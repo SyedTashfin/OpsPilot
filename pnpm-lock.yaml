@@ -46,6 +46,9 @@ importers:
       "@opspilot/database":
         specifier: workspace:*
         version: link:../../packages/database
+      "@opspilot/rag":
+        specifier: workspace:*
+        version: link:../../packages/rag
       fastify:
         specifier: ^5.1.0
         version: 5.8.5
@@ -111,7 +114,17 @@ importers:
         version: 4.22.4
 
   packages/rag:
+    dependencies:
+      "@opspilot/database":
+        specifier: workspace:*
+        version: link:../database
+      pg:
+        specifier: ^8.13.1
+        version: 8.22.0
     devDependencies:
+      "@types/pg":
+        specifier: ^8.11.11
+        version: 8.20.0
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
