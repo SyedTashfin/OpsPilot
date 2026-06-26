@@ -1,0 +1,74 @@
+# OpsPilot
+
+OpsPilot is a local-first AI operations copilot MVP for investigating synthetic production incidents at the fictional company **BeautyCorp**.
+
+The V1 product is intentionally narrow: a demo microservice emits logs, an incident is detected, one AI agent investigates logs and runbooks, and the result is shown in a web dashboard with Langfuse-backed observability.
+
+## V1 scope
+
+Included in V1:
+
+- Next.js dashboard
+- Fastify API
+- PostgreSQL with pgvector
+- Ollama/Qwen as the default local LLM provider
+- Optional Gemini provider
+- Langfuse tracing/evaluation integration
+- Docker Compose-only local infrastructure
+- Synthetic BeautyCorp services and incidents
+
+Explicitly out of scope for V1: Kubernetes, Terraform, ArgoCD, multi-tenancy, multiple agents, automatic remediation, approval workflows, complex RBAC, and cloud deployment.
+
+## Prerequisites
+
+- Node.js 22+
+- pnpm 9.15.5
+- Docker Desktop / Docker Engine
+
+## Local development
+
+```bash
+pnpm install
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+## Docker Compose
+
+Issue #2 adds the local container foundation:
+
+```bash
+cp .env.example .env
+pnpm docker:config
+pnpm docker:build
+pnpm docker:up
+```
+
+Primary local endpoints once containers are running:
+
+- OpsPilot web placeholder: <http://localhost:3000>
+- OpsPilot API placeholder: <http://localhost:4000>
+- Langfuse UI: <http://localhost:3001>
+- Ollama: <http://localhost:11434>
+- OpsPilot Postgres: `localhost:5432`
+
+If a host Ollama process already occupies port `11434`, keep the internal Compose service name unchanged and override only the host port:
+
+```bash
+OLLAMA_PORT=11435 pnpm docker:up
+```
+
+Pull local models explicitly when needed:
+
+```bash
+./scripts/ollama/pull-models.sh
+```
+
+## Architecture source of truth
+
+- `docs/adr/0001-monorepo.md`
+- `docs/adr/0002-langfuse-observability.md`
+- `docs/issues/001-bootstrap-monorepo.md`
+- `docs/issues/002-docker-compose-foundation.md`

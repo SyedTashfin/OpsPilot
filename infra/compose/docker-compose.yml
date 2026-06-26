@@ -1,0 +1,101 @@
+name: opspilot
+
+services:
+  opspilot-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: opspilot-postgres
+    environment:
+      POSTGRES_USER: opspilot
+      POSTGRES_PASSWORD: opspilot
+      POSTGRES_DB: opspilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - opspilot_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opspilot -d opspilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: opspilot-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  opspilot-api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: opspilot-api
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      API_PORT: 4000
+      DATABASE_URL: ${DATABASE_URL}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL}
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+    ports:
+      - "4000:4000"
+    depends_on:
+      opspilot-postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  opspilot-web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+    container_name: opspilot-web
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      WEB_PUBLIC_API_URL: ${WEB_PUBLIC_API_URL}
+    ports:
+      - "3000:3000"
+    depends_on:
+      opspilot-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  opspilot-demo-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/demo-service.Dockerfile
+    container_name: opspilot-demo-service
+    environment:
+      NODE_ENV: development
+      OPSPILOT_API_URL: http://opspilot-api:4000
+    depends_on:
+      opspilot-api:
+        condition: service_healthy
+
+volumes:
+  opspilot_postgres_data:
+  ollama_data:
