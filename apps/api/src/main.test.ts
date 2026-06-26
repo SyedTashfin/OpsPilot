@@ -1,5 +1,6 @@
 import type pg from "pg";
 import { afterAll, describe, expect, it } from "vitest";
+import { loadConfig } from "./config.js";
 import { createHealthResponse, getServiceName } from "./main.js";
 import { buildServer } from "./server.js";
 
@@ -43,6 +44,10 @@ describe("api server", () => {
   it("identifies itself", () => {
     expect(getServiceName()).toBe("@opspilot/api");
     expect(createHealthResponse()).toEqual({ service: "@opspilot/api", status: "ready" });
+  });
+
+  it("rejects invalid LLM provider config instead of silently falling back", () => {
+    expect(() => loadConfig({ LLM_PROVIDER: "gemni" })).toThrow();
   });
 
   it("serves health", async () => {

@@ -103,6 +103,42 @@ describe("@opspilot/llm", () => {
     await expect(client.health()).resolves.toMatchObject({ configured: false, available: false });
   });
 
+  it("calls Gemini without putting credentials in the URL", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse({
+        candidates: [{ content: { parts: [{ text: "Likely feature-store timeout." }] } }],
+        usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 6, totalTokenCount: 18 },
+      }),
+    );
+    const client = new GeminiClient({
+      credential: "test-credential",
+      model: "gemini-1.5-flash",
+      fetchImpl,
+    });
+
+    const response = await client.chat({
+      messages: [
+        { role: "system", content: "Use evidence only." },
+        { role: "user", content: "Investigate the latency incident." },
+      ],
+    });
+
+    expect(response).toMatchObject({
+      provider: "gemini",
+      model: "gemini-1.5-flash",
+      content: "Likely feature-store timeout.",
+      usage: { promptTokens: 12, completionTokens: 6, totalTokens: 18, estimated: false },
+    });
+    const [url, init] = fetchImpl.mock.calls[0] ?? [];
+    expect(url).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+    );
+    expect(init).toMatchObject({ method: "POST" });
+    expect(init?.headers).toMatchObject({
+      "x-goog-api-key": "test-credential",
+    });
+  });
+
   it("selects providers from config", () => {
     expect(
       createLLMClient({

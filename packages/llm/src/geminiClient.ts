@@ -58,13 +58,13 @@ export class GeminiClient implements LLMClient {
 
     const request = LLMChatRequestSchema.parse(input);
     const model = request.model ?? this.model;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(this.credential)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-goog-api-key": this.credential },
         body: JSON.stringify({
           systemInstruction: buildSystemInstruction(request.messages),
           contents: buildGeminiContents(request.messages),
