@@ -8,11 +8,13 @@ import { registerDemoRoutes } from "./routes/demo.routes.js";
 import { registerHealthRoutes } from "./routes/health.routes.js";
 import { registerIncidentRoutes } from "./routes/incidents.routes.js";
 import { registerLogRoutes } from "./routes/logs.routes.js";
+import { registerRunbookRoutes } from "./routes/runbooks.routes.js";
 import { registerServiceRoutes } from "./routes/services.routes.js";
 import { DemoRepository } from "./modules/demo/demo.repository.js";
 import { IncidentRepository } from "./modules/incidents/incident.repository.js";
 import { LogRepository } from "./modules/logs/log.repository.js";
 import { ServiceRepository } from "./modules/services/service.repository.js";
+import { RunbookRagService, createEmbeddingClient, loadRagConfig } from "@opspilot/rag";
 
 export type ServerDependencies = {
   readonly pool?: pg.Pool;
@@ -35,12 +37,14 @@ export async function buildServer(
   const logs = new LogRepository(pool);
   const incidents = new IncidentRepository(pool);
   const demo = new DemoRepository(pool);
+  const rag = new RunbookRagService(pool, createEmbeddingClient(loadRagConfig()));
 
   registerHealthRoutes(app, pool, config);
   registerServiceRoutes(app, services);
   registerLogRoutes(app, logs);
   registerIncidentRoutes(app, incidents);
   registerDemoRoutes(app, demo, logs, incidents);
+  registerRunbookRoutes(app, rag);
 
   app.addHook("onClose", async () => {
     if (!dependencies.pool) await pool.end();
