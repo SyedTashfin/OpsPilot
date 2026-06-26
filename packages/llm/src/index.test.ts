@@ -139,6 +139,54 @@ describe("@opspilot/llm", () => {
     });
   });
 
+  it("times out Ollama chat requests with a provider timeout error", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    const client = new OllamaClient({
+      baseUrl: "http://localhost:11434",
+      model: "qwen2.5:7b-instruct",
+      timeoutMs: 5,
+      fetchImpl,
+    });
+
+    await expect(
+      client.chat({ messages: [{ role: "user", content: "hello" }] }),
+    ).rejects.toMatchObject({
+      provider: "ollama",
+      code: "provider_timeout",
+    });
+  });
+
+  it("times out Gemini chat requests with a provider timeout error", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    const client = new GeminiClient({
+      credential: "test-credential",
+      model: "gemini-1.5-flash",
+      timeoutMs: 5,
+      fetchImpl,
+    });
+
+    await expect(
+      client.chat({ messages: [{ role: "user", content: "hello" }] }),
+    ).rejects.toMatchObject({
+      provider: "gemini",
+      code: "provider_timeout",
+    });
+  });
+
   it("selects providers from config", () => {
     expect(
       createLLMClient({

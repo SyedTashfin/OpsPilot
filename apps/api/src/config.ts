@@ -8,6 +8,7 @@ export type ApiConfig = {
   readonly autoMigrate: boolean;
   readonly llmProvider: "ollama" | "gemini";
   readonly ollamaModel: string;
+  readonly llmTimeoutMs: number;
   readonly llmCredential: string | undefined;
   readonly geminiModel: string;
 };
@@ -21,6 +22,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     autoMigrate: env.API_AUTO_MIGRATE !== "false",
     llmProvider: LLMProviderSchema.parse(env.LLM_PROVIDER ?? "ollama"),
     ollamaModel: env.OLLAMA_CHAT_MODEL ?? "qwen2.5:7b-instruct",
+    llmTimeoutMs: Number(env.LLM_TIMEOUT_MS ?? 90_000),
     llmCredential: env.GEMINI_API_KEY || undefined,
     geminiModel: env.GEMINI_MODEL ?? "gemini-1.5-flash",
   };

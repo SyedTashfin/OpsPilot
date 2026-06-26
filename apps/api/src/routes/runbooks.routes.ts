@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { RunbookRagService } from "@opspilot/rag";
+import { sendApiError } from "./api-error.js";
 
 const searchQuerySchema = z.object({
   q: z.string().min(1),
@@ -11,9 +12,13 @@ export function registerRunbookRoutes(app: FastifyInstance, rag: RunbookRagServi
   app.get("/api/runbooks/search", async (request, reply) => {
     const parsed = searchQuerySchema.safeParse(request.query);
     if (!parsed.success) {
-      return reply
-        .status(400)
-        .send({ error: "Invalid search query.", details: parsed.error.flatten() });
+      return sendApiError(
+        reply,
+        400,
+        "invalid_runbook_search_query",
+        "Invalid runbook search query.",
+        parsed.error.flatten(),
+      );
     }
 
     const results = await rag.search(parsed.data.q, parsed.data.limit);

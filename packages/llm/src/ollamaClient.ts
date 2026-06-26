@@ -8,6 +8,7 @@ import {
   type LLMProviderHealth,
 } from "./LLMClient.js";
 import { buildEstimatedUsage } from "./tokenUsage.js";
+import { createTimeoutSignal, isAbortError, normalizeTimeoutMs } from "./timeout.js";
 
 const OllamaChatResponseSchema = z.object({
   model: z.string().optional(),
@@ -20,6 +21,7 @@ const OllamaChatResponseSchema = z.object({
 export type OllamaClientOptions = {
   readonly baseUrl: string;
   readonly model: string;
+  readonly timeoutMs?: number;
   readonly fetchImpl?: typeof fetch;
 };
 
@@ -27,11 +29,13 @@ export class OllamaClient implements LLMClient {
   readonly provider = "ollama" as const;
   readonly model: string;
   private readonly baseUrl: string;
+  private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: OllamaClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/u, "");
     this.model = options.model;
+    this.timeoutMs = normalizeTimeoutMs(options.timeoutMs);
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -40,10 +44,12 @@ export class OllamaClient implements LLMClient {
     const model = request.model ?? this.model;
 
     let response: Response;
+    const timeout = createTimeoutSignal(this.timeoutMs);
     try {
       response = await this.fetchImpl(`${this.baseUrl}/api/chat`, {
         method: "POST",
         headers: { "content-type": "application/json" },
+        signal: timeout.signal,
         body: JSON.stringify({
           model,
           messages: request.messages,
@@ -56,12 +62,22 @@ export class OllamaClient implements LLMClient {
         }),
       });
     } catch (error) {
+      if (isAbortError(error) || timeout.signal.aborted) {
+        throw new LLMProviderError(
+          "ollama",
+          "provider_timeout",
+          `Ollama request to ${this.baseUrl} timed out after ${this.timeoutMs}ms.`,
+          { cause: error },
+        );
+      }
       throw new LLMProviderError(
         "ollama",
         "provider_unavailable",
         `Ollama is unavailable at ${this.baseUrl}. Start Ollama or the Docker Compose ollama service and retry.`,
         { cause: error },
       );
+    } finally {
+      timeout.clear();
     }
 
     const text = await response.text();

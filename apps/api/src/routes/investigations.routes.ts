@@ -3,6 +3,7 @@ import type {
   InvestigationRepository,
   InvestigationWorkflow,
 } from "../modules/investigations/index.js";
+import { sendApiError } from "./api-error.js";
 
 export function registerInvestigationRoutes(
   app: FastifyInstance,
@@ -16,10 +17,10 @@ export function registerInvestigationRoutes(
         return await workflow.investigate(request.params.incidentId);
       } catch (error) {
         if (error instanceof Error && error.message.includes("not found")) {
-          return reply.code(404).send({ error: "incident_not_found" });
+          return sendApiError(reply, 404, "incident_not_found", "Incident not found.");
         }
         request.log.error({ error }, "Investigation failed");
-        return reply.code(500).send({ error: "investigation_failed" });
+        return sendApiError(reply, 500, "investigation_failed", "Investigation failed.");
       }
     },
   );
@@ -28,7 +29,8 @@ export function registerInvestigationRoutes(
     "/api/investigations/:investigationId",
     async (request, reply) => {
       const investigation = await repository.getInvestigationDetail(request.params.investigationId);
-      if (!investigation) return reply.code(404).send({ error: "investigation_not_found" });
+      if (!investigation)
+        return sendApiError(reply, 404, "investigation_not_found", "Investigation not found.");
       return investigation;
     },
   );
@@ -37,7 +39,8 @@ export function registerInvestigationRoutes(
     "/api/investigations/:investigationId/report",
     async (request, reply) => {
       const report = await repository.getInvestigationReport(request.params.investigationId);
-      if (!report) return reply.code(404).send({ error: "investigation_not_found" });
+      if (!report)
+        return sendApiError(reply, 404, "investigation_not_found", "Investigation not found.");
       return report;
     },
   );

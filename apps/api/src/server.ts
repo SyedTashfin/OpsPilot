@@ -52,6 +52,7 @@ export async function buildServer(
       ollamaModel: config.ollamaModel,
       credential: config.llmCredential,
       geminiModel: config.geminiModel,
+      timeoutMs: config.llmTimeoutMs,
     });
   const investigationWorkflow = new InvestigationWorkflow(investigationRepository, rag, llm);
 
