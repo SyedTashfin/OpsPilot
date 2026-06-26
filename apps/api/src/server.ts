@@ -2,7 +2,7 @@ import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 import type pg from "pg";
 import { runMigrations } from "@opspilot/database";
-import { createLLMClient } from "@opspilot/llm";
+import { createLLMClient, type LLMClient } from "@opspilot/llm";
 import type { ApiConfig } from "./config.js";
 import { createDatabasePool } from "./plugins/db.js";
 import { registerDemoRoutes } from "./routes/demo.routes.js";
@@ -22,6 +22,7 @@ import { RunbookRagService, createEmbeddingClient, loadRagConfig } from "@opspil
 
 export type ServerDependencies = {
   readonly pool?: pg.Pool;
+  readonly llm?: LLMClient;
 };
 
 export async function buildServer(
@@ -43,13 +44,15 @@ export async function buildServer(
   const investigationRepository = new InvestigationRepository(pool);
   const demo = new DemoRepository(pool);
   const rag = new RunbookRagService(pool, createEmbeddingClient(loadRagConfig()));
-  const llm = createLLMClient({
-    provider: config.llmProvider,
-    ollamaBaseUrl: config.ollamaBaseUrl,
-    ollamaModel: config.ollamaModel,
-    credential: config.llmCredential,
-    geminiModel: config.geminiModel,
-  });
+  const llm =
+    dependencies.llm ??
+    createLLMClient({
+      provider: config.llmProvider,
+      ollamaBaseUrl: config.ollamaBaseUrl,
+      ollamaModel: config.ollamaModel,
+      credential: config.llmCredential,
+      geminiModel: config.geminiModel,
+    });
   const investigationWorkflow = new InvestigationWorkflow(investigationRepository, rag, llm);
 
   registerHealthRoutes(app, pool, config);
@@ -57,7 +60,7 @@ export async function buildServer(
   registerLogRoutes(app, logs);
   registerLLMRoutes(app, llm);
   registerIncidentRoutes(app, incidents);
-  registerInvestigationRoutes(app, investigationWorkflow);
+  registerInvestigationRoutes(app, investigationWorkflow, investigationRepository);
   registerDemoRoutes(app, demo, logs, incidents);
   registerRunbookRoutes(app, rag);
 

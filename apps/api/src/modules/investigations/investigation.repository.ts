@@ -1,10 +1,11 @@
 import type pg from "pg";
-import type {
-  DeploymentContext,
-  IncidentContext,
-  InvestigationLogEntry,
-  InvestigationReport,
-  MetricSummary,
+import {
+  InvestigationReportSchema,
+  type DeploymentContext,
+  type IncidentContext,
+  type InvestigationLogEntry,
+  type InvestigationReport,
+  type MetricSummary,
 } from "./investigation.types.js";
 
 export class InvestigationRepository {
@@ -115,6 +116,74 @@ export class InvestigationRepository {
     return result.rows;
   }
 
+  async getInvestigationDetail(investigationId: string): Promise<Record<string, unknown> | null> {
+    const investigation = await this.pool.query<Record<string, unknown>>(
+      `SELECT inv.id,
+              inv.incident_id AS "incidentId",
+              i.title AS "incidentTitle",
+              s.name AS "serviceName",
+              inv.status,
+              inv.provider,
+              inv.model,
+              inv.prompt_version AS "promptVersion",
+              inv.started_at AS "startedAt",
+              inv.completed_at AS "completedAt",
+              inv.latency_ms AS "latencyMs",
+              inv.summary,
+              inv.probable_root_cause AS "probableRootCause",
+              inv.confidence_score::float AS confidence,
+              inv.created_at AS "createdAt"
+       FROM investigations inv
+       JOIN incidents i ON i.id = inv.incident_id
+       JOIN beautycorp_services s ON s.id = i.service_id
+       WHERE inv.id = $1
+       LIMIT 1;`,
+      [investigationId],
+    );
+    const row = investigation.rows[0];
+    if (!row) return null;
+
+    const toolCalls = await this.listToolCalls(investigationId);
+    const steps = await this.listInvestigationSteps(investigationId);
+    const finalReport = this.extractFinalReport(steps);
+
+    return {
+      ...row,
+      toolCalls,
+      steps,
+      evidence: finalReport?.evidence ?? [],
+      citedRunbooks: finalReport?.citedRunbooks ?? [],
+      recommendedNextDiagnostics: finalReport?.recommendedNextDiagnostics ?? [],
+    };
+  }
+
+  async getInvestigationReport(investigationId: string): Promise<Record<string, unknown> | null> {
+    const detail = await this.getInvestigationDetail(investigationId);
+    if (!detail) return null;
+    return {
+      investigationId: detail.id,
+      incidentId: detail.incidentId,
+      incidentTitle: detail.incidentTitle,
+      serviceName: detail.serviceName,
+      status: detail.status,
+      generatedAt: detail.completedAt ?? detail.createdAt,
+      summary: detail.summary,
+      probableRootCause: detail.probableRootCause,
+      confidence: detail.confidence,
+      evidence: detail.evidence,
+      citedRunbooks: detail.citedRunbooks,
+      recommendedNextDiagnostics: detail.recommendedNextDiagnostics,
+      supportingToolCalls: (detail.toolCalls as readonly Record<string, unknown>[]).map(
+        (toolCall) => ({
+          toolName: toolCall.toolName,
+          status: toolCall.status,
+          latencyMs: toolCall.latencyMs,
+          createdAt: toolCall.createdAt,
+        }),
+      ),
+    };
+  }
+
   async recordToolCall(input: {
     readonly investigationId: string;
     readonly toolName: string;
@@ -159,6 +228,24 @@ export class InvestigationRepository {
     );
   }
 
+  async recordInvalidModelResponse(input: {
+    readonly investigationId: string;
+    readonly rawResponse: string;
+    readonly parserError: string;
+  }): Promise<void> {
+    await this.recordStep({
+      investigationId: input.investigationId,
+      stepIndex: 6,
+      stepType: "observation",
+      title: "Invalid model response",
+      content: input.rawResponse,
+      metadata: {
+        parserError: input.parserError,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  }
+
   async completeInvestigation(input: {
     readonly investigationId: string;
     readonly report: InvestigationReport;
@@ -191,5 +278,52 @@ export class InvestigationRepository {
       `UPDATE investigations SET status = 'failed', completed_at = now(), summary = $2 WHERE id = $1;`,
       [input.investigationId, input.error],
     );
+  }
+
+  private async listToolCalls(investigationId: string): Promise<Record<string, unknown>[]> {
+    const result = await this.pool.query<Record<string, unknown>>(
+      `SELECT id,
+              tool_name AS "toolName",
+              input,
+              output,
+              status,
+              latency_ms AS "latencyMs",
+              created_at AS "createdAt"
+       FROM tool_calls
+       WHERE investigation_id = $1
+       ORDER BY created_at ASC, id ASC;`,
+      [investigationId],
+    );
+    return result.rows;
+  }
+
+  private async listInvestigationSteps(
+    investigationId: string,
+  ): Promise<Record<string, unknown>[]> {
+    const result = await this.pool.query<Record<string, unknown>>(
+      `SELECT id,
+              step_index AS "stepIndex",
+              step_type AS "stepType",
+              title,
+              content,
+              metadata,
+              created_at AS "createdAt"
+       FROM investigation_steps
+       WHERE investigation_id = $1
+       ORDER BY step_index ASC;`,
+      [investigationId],
+    );
+    return result.rows;
+  }
+
+  private extractFinalReport(
+    steps: readonly Record<string, unknown>[],
+  ): InvestigationReport | null {
+    const final = steps.find(
+      (step) => step.stepType === "final" && step.title === "Investigation report",
+    );
+    if (typeof final?.content !== "string") return null;
+    const parsed = InvestigationReportSchema.safeParse(JSON.parse(final.content));
+    return parsed.success ? parsed.data : null;
   }
 }

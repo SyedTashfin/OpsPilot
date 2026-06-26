@@ -13,6 +13,78 @@ class FakePool {
       });
     }
     if (sql.includes("FROM log_entries")) return Promise.resolve({ rows: [], rowCount: 0 });
+    if (sql.includes("FROM investigations inv") && sql.includes("WHERE inv.id")) {
+      return Promise.resolve({
+        rows: [
+          {
+            id: "inv-1",
+            incidentId: "incident-1",
+            incidentTitle: "Recommendation latency spike",
+            serviceName: "recommendation-service",
+            status: "completed",
+            provider: "ollama",
+            model: "test-model",
+            promptVersion: "incident-investigation-v1",
+            startedAt: "2026-06-26T09:58:00.000Z",
+            completedAt: "2026-06-26T09:59:00.000Z",
+            latencyMs: 1000,
+            summary: "Latency spiked after deployment.",
+            probableRootCause: "Feature-store timeout retry amplification.",
+            confidence: 0.86,
+            createdAt: "2026-06-26T09:58:00.000Z",
+          },
+        ],
+        rowCount: 1,
+      });
+    }
+    if (sql.includes("FROM tool_calls")) {
+      return Promise.resolve({
+        rows: [
+          {
+            id: "tool-1",
+            toolName: "query_logs",
+            input: {},
+            output: [],
+            status: "success",
+            latencyMs: 5,
+            createdAt: "2026-06-26T09:58:01.000Z",
+          },
+        ],
+        rowCount: 1,
+      });
+    }
+    if (sql.includes("FROM investigation_steps")) {
+      return Promise.resolve({
+        rows: [
+          {
+            id: "step-1",
+            stepIndex: 6,
+            stepType: "final",
+            title: "Investigation report",
+            content: JSON.stringify({
+              summary: "Latency spiked after deployment.",
+              probableRootCause: "Feature-store timeout retry amplification.",
+              confidence: 0.86,
+              evidence: [
+                { source: "log", reference: "log-1", detail: "feature_store_timeout observed" },
+              ],
+              citedRunbooks: [
+                {
+                  title: "Recommendation Service Latency Runbook",
+                  slug: "recommendation-service-latency",
+                  chunkId: "chunk-1",
+                  quote: "feature-store timeout errors",
+                },
+              ],
+              recommendedNextDiagnostics: ["Compare deployment diff."],
+            }),
+            metadata: {},
+            createdAt: "2026-06-26T09:59:00.000Z",
+          },
+        ],
+        rowCount: 1,
+      });
+    }
     if (sql.includes("FROM incidents")) return Promise.resolve({ rows: [], rowCount: 0 });
     return Promise.resolve({ rows: [{ ok: 1 }], rowCount: 1 });
   }
@@ -76,6 +148,29 @@ describe("api server", () => {
         model: "qwen2.5:7b-instruct",
       }),
     );
+  });
+
+  it("serves investigation details", async () => {
+    const response = await app.inject({ method: "GET", url: "/api/investigations/inv-1" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      id: "inv-1",
+      probableRootCause: "Feature-store timeout retry amplification.",
+      toolCalls: [expect.objectContaining({ toolName: "query_logs" })],
+      evidence: [expect.objectContaining({ source: "log" })],
+      citedRunbooks: [expect.objectContaining({ slug: "recommendation-service-latency" })],
+    });
+  });
+
+  it("serves presentation investigation report", async () => {
+    const response = await app.inject({ method: "GET", url: "/api/investigations/inv-1/report" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      investigationId: "inv-1",
+      serviceName: "recommendation-service",
+      probableRootCause: "Feature-store timeout retry amplification.",
+      supportingToolCalls: [expect.objectContaining({ toolName: "query_logs" })],
+    });
   });
 
   it("rejects invalid telemetry", async () => {

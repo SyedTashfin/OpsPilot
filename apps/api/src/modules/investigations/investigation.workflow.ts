@@ -80,7 +80,7 @@ export class InvestigationWorkflow {
         temperature: 0.1,
         maxTokens: 1200,
       });
-      const report = InvestigationReportSchema.parse(JSON.parse(response.content));
+      const report = await this.parseReportOrPersistFailure(investigationId, response.content);
 
       await this.repository.recordStep({
         investigationId,
@@ -101,6 +101,20 @@ export class InvestigationWorkflow {
       await this.repository.failInvestigation({
         investigationId,
         error: error instanceof Error ? error.message : "Investigation failed.",
+      });
+      throw error;
+    }
+  }
+
+  private async parseReportOrPersistFailure(investigationId: string, rawResponse: string) {
+    try {
+      return InvestigationReportSchema.parse(JSON.parse(rawResponse));
+    } catch (error) {
+      const parserError = error instanceof Error ? error.message : "Invalid investigation JSON.";
+      await this.repository.recordInvalidModelResponse({
+        investigationId,
+        rawResponse,
+        parserError,
       });
       throw error;
     }
