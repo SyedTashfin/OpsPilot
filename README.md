@@ -86,13 +86,16 @@ Issue #4 adds deterministic synthetic data generation for the fictional company 
 
 Issue #5 replaces the placeholder API with Fastify routes for health, services, logs, demo telemetry ingest, and V1 incident detection. Local Docker startup runs migrations automatically by default through `API_AUTO_MIGRATE=true`; set it to `false` if you want to manage migrations explicitly.
 
+## Project management
+
+GitHub Issues are the source of truth for implementation planning and execution. Do not use local Markdown issue files as the primary task tracker.
+
+- Issues: <https://github.com/SyedTashfin/OpsPilot/issues>
+- Workflow: `docs/github-workflow.md`
+- Historical completed Markdown issue files: `docs/archive/completed-issues/`
+
 ## Architecture source of truth
 
 - `docs/adr/0001-monorepo.md`
 - `docs/adr/0002-langfuse-observability.md`
 - `docs/architecture/database-schema.md`
-- `docs/issues/001-bootstrap-monorepo.md`
-- `docs/issues/002-docker-compose-foundation.md`
-- `docs/issues/003-database-schema.md`
-- `docs/issues/004-beautycorp-demo-service.md`
-- `docs/issues/005-api-logs-incidents.md`
