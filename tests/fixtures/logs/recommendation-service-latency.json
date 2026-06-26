@@ -1,0 +1,11 @@
+{
+  "fixture": "recommendation-service-latency",
+  "company": "BeautyCorp",
+  "serviceName": "recommendation-service",
+  "incidentScenarioId": "beautycorp-rec-latency-2026-06-26",
+  "signals": [
+    "Feature store timeout after 2000ms while building recommendation candidates",
+    "p95 latency above 1200ms after deployment rec-2026.06.1",
+    "retry amplification visible in retryCount attributes"
+  ]
+}

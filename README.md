@@ -78,6 +78,10 @@ pnpm db:reset
 
 When running against the local Compose database from the host, use the `DATABASE_URL` from `.env.example` or export it in your shell before invoking the scripts.
 
+## BeautyCorp demo service
+
+Issue #4 adds deterministic synthetic data generation for the fictional company **BeautyCorp**. The demo service generates services, deployments, logs, metrics, and the first recommendation-service latency incident scenario. It includes a real telemetry posting client for the API ingest route that lands in Issue #5, while keeping startup posting opt-in so the Docker stack remains healthy before that route exists.
+
 ## Architecture source of truth
 
 - `docs/adr/0001-monorepo.md`
@@ -86,3 +90,4 @@ When running against the local Compose database from the host, use the `DATABASE
 - `docs/issues/001-bootstrap-monorepo.md`
 - `docs/issues/002-docker-compose-foundation.md`
 - `docs/issues/003-database-schema.md`
+- `docs/issues/004-beautycorp-demo-service.md`
