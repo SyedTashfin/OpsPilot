@@ -138,9 +138,65 @@ Issue #8 adds the first single-agent investigation workflow. It is intentionally
 
 ```text
 POST /api/incidents/:incidentId/investigations
+GET /api/investigations/:investigationId
+GET /api/investigations/:investigationId/report
 ```
 
-The returned report contains `summary`, `probableRootCause`, `confidence`, `evidence[]`, `citedRunbooks[]`, and `recommendedNextDiagnostics`. The workflow does not perform remediation, infrastructure changes, autonomous retries, chat, memory, Langfuse tracing, or dashboard work.
+The returned report contains `summary`, `probableRootCause`, `confidence`, `evidence[]`, `citedRunbooks[]`, and `recommendedNextDiagnostics`. The workflow does not perform remediation, infrastructure changes, autonomous retries, chat, memory, Langfuse tracing, or dashboard work. The read APIs are application-owned and do not depend on Langfuse.
+
+## Running a Complete Investigation Demo
+
+Issue 8.5 adds a no-manual-API-calls local demo command:
+
+```bash
+pnpm demo:investigation
+```
+
+The script resets the local database, runs migrations, seeds BeautyCorp, ingests runbooks, generates deterministic telemetry, detects the recommendation-service incident, executes the investigation, fetches the completed report, and prints a readable summary.
+
+Required services and models:
+
+- Postgres with pgvector available through `DATABASE_URL`.
+- Ollama reachable through `OLLAMA_BASE_URL` when using the default `LLM_PROVIDER=ollama`.
+- Default chat model pulled locally: `qwen2.5:7b-instruct`.
+
+Typical local flow:
+
+```bash
+cp .env.example .env
+pnpm docker:up
+ollama pull qwen2.5:7b-instruct
+DATABASE_URL=postgres://opspilot:opspilot@localhost:5432/opspilot \
+OLLAMA_BASE_URL=http://localhost:11434 \
+pnpm demo:investigation
+```
+
+For a faster runbook-ingestion smoke path, the script defaults RAG embeddings to deterministic embeddings unless `RAG_EMBEDDING_PROVIDER` is set. This keeps the demo focused on the investigation LLM call.
+
+For deterministic CI/local smoke testing without waiting on a local model, set:
+
+```bash
+OPSPILOT_DEMO_FAKE_LLM=true pnpm demo:investigation
+```
+
+Leave `OPSPILOT_DEMO_FAKE_LLM` unset when you want the production-like path through the configured LLM provider.
+
+Expected output includes:
+
+- investigation ID
+- incident title and service
+- confidence
+- summary
+- probable root cause
+- evidence bullets
+- cited runbooks
+- recommended next diagnostics
+
+Troubleshooting:
+
+- If Postgres connection fails, verify `pnpm docker:up` is running and `DATABASE_URL` points at the host-mapped Postgres port.
+- If Ollama returns a missing-model error, run `ollama pull qwen2.5:7b-instruct` or set `OLLAMA_CHAT_MODEL` to a model you have pulled.
+- If the model returns invalid JSON, OpsPilot persists the raw response, parser error, and timestamp in investigation steps for debugging.
 
 ## Project management
 

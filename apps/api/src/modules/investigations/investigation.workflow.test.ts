@@ -23,6 +23,7 @@ class FakeInvestigationRepository {
   readonly toolNames: string[] = [];
   readonly steps: string[] = [];
   completedReport: unknown;
+  invalidModelResponse: { rawResponse: string; parserError: string } | undefined;
 
   getIncident(): Promise<IncidentContext> {
     return Promise.resolve(incident);
@@ -79,6 +80,14 @@ class FakeInvestigationRepository {
     return Promise.resolve();
   }
 
+  recordInvalidModelResponse(input: {
+    readonly rawResponse: string;
+    readonly parserError: string;
+  }): Promise<void> {
+    this.invalidModelResponse = { rawResponse: input.rawResponse, parserError: input.parserError };
+    return Promise.resolve();
+  }
+
   failInvestigation(): Promise<void> {
     return Promise.resolve();
   }
@@ -100,6 +109,29 @@ class FakeRunbooks implements RunbookSearchService {
         metadata: {},
       },
     ]);
+  }
+}
+
+class InvalidJsonLLM implements LLMClient {
+  readonly provider = "ollama" as const;
+  readonly model = "test-model";
+
+  chat(): Promise<LLMChatResponse> {
+    return Promise.resolve({
+      provider: "ollama",
+      model: "test-model",
+      content: "not-json",
+      usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2, estimated: true },
+    });
+  }
+
+  health(): Promise<LLMProviderHealth> {
+    return Promise.resolve({
+      provider: "ollama",
+      configured: true,
+      available: true,
+      model: this.model,
+    });
   }
 }
 
@@ -201,5 +233,18 @@ describe("InvestigationWorkflow", () => {
     expect(repository.completedReport).toEqual(result.report);
     expect(llm.requests[0]?.messages[1]?.content).toContain("requiredToolSequenceAlreadyCompleted");
     expect(llm.requests[0]?.messages[1]?.content).toContain("No remediation actions");
+  });
+
+  it("persists raw model response and parser error when JSON parsing fails", async () => {
+    const repository = new FakeInvestigationRepository();
+    const workflow = new InvestigationWorkflow(
+      repository as unknown as InvestigationRepository,
+      new FakeRunbooks(),
+      new InvalidJsonLLM(),
+    );
+
+    await expect(workflow.investigate("incident-1")).rejects.toThrow();
+    expect(repository.invalidModelResponse?.rawResponse).toBe("not-json");
+    expect(repository.invalidModelResponse?.parserError).toContain("JSON");
   });
 });

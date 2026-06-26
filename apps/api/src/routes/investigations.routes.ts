@@ -1,9 +1,13 @@
 import type { FastifyInstance } from "fastify";
-import type { InvestigationWorkflow } from "../modules/investigations/index.js";
+import type {
+  InvestigationRepository,
+  InvestigationWorkflow,
+} from "../modules/investigations/index.js";
 
 export function registerInvestigationRoutes(
   app: FastifyInstance,
   workflow: InvestigationWorkflow,
+  repository: InvestigationRepository,
 ): void {
   app.post<{ Params: { incidentId: string } }>(
     "/api/incidents/:incidentId/investigations",
@@ -17,6 +21,24 @@ export function registerInvestigationRoutes(
         request.log.error({ error }, "Investigation failed");
         return reply.code(500).send({ error: "investigation_failed" });
       }
+    },
+  );
+
+  app.get<{ Params: { investigationId: string } }>(
+    "/api/investigations/:investigationId",
+    async (request, reply) => {
+      const investigation = await repository.getInvestigationDetail(request.params.investigationId);
+      if (!investigation) return reply.code(404).send({ error: "investigation_not_found" });
+      return investigation;
+    },
+  );
+
+  app.get<{ Params: { investigationId: string } }>(
+    "/api/investigations/:investigationId/report",
+    async (request, reply) => {
+      const report = await repository.getInvestigationReport(request.params.investigationId);
+      if (!report) return reply.code(404).send({ error: "investigation_not_found" });
+      return report;
     },
   );
 }

@@ -12,7 +12,7 @@
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "test": "turbo run test && vitest run scripts/**/*.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:migrate": "tsx scripts/db/migrate.ts",
@@ -23,7 +23,8 @@
     "docker:up": "docker compose --env-file .env.example -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.langfuse.yml up -d",
     "docker:down": "docker compose --env-file .env.example -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.langfuse.yml down",
     "rag:ingest": "tsx scripts/rag/ingest-runbooks.ts",
-    "rag:search": "tsx scripts/rag/search-runbooks.ts"
+    "rag:search": "tsx scripts/rag/search-runbooks.ts",
+    "demo:investigation": "tsx scripts/demo/run-investigation.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
