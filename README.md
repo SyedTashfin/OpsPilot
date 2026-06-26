@@ -106,6 +106,7 @@ GET /api/runbooks/search?q=feature%20store%20timeout&limit=5
 GitHub Issues are the source of truth for implementation planning and execution. Do not use local Markdown issue files as the primary task tracker.
 
 - Issues: <https://github.com/SyedTashfin/OpsPilot/issues>
+- Project board: <https://github.com/users/SyedTashfin/projects/2>
 - Workflow: `docs/github-workflow.md`
 - Historical completed Markdown issue files: `docs/archive/completed-issues/`
 

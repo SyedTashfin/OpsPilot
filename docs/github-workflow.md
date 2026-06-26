@@ -5,14 +5,27 @@ GitHub is the source of truth for OpsPilot implementation planning.
 ## Tracker
 
 - Issues: <https://github.com/SyedTashfin/OpsPilot/issues>
+- Project board: <https://github.com/users/SyedTashfin/projects/2>
 - Milestones:
   - `V1 MVP`
   - `V2 Production`
   - `V3 Enterprise`
 
+## Project board status
+
+The GitHub Project uses the `OpsPilot Status` single-select field as the professional workflow board:
+
+- `Backlog`
+- `Ready`
+- `In Progress`
+- `Review`
+- `Done`
+
+The default GitHub `Status` field is also maintained for compatibility, but `OpsPilot Status` is the canonical board column field.
+
 ## Completed historical issues
 
-Issues #1–#5 were implemented before the GitHub-native transition. They are preserved as closed GitHub Issues so numbering matches the implementation history.
+Issues #1–#6 are completed and preserved as closed GitHub Issues so numbering matches the implementation history. Issue #6 was completed through the GitHub branch/PR workflow.
 
 ## Required implementation workflow
 
