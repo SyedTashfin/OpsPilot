@@ -9,6 +9,7 @@ import {
   type LLMProviderHealth,
 } from "./LLMClient.js";
 import { buildEstimatedUsage } from "./tokenUsage.js";
+import { createTimeoutSignal, isAbortError, normalizeTimeoutMs } from "./timeout.js";
 
 const GeminiResponseSchema = z.object({
   candidates: z
@@ -32,6 +33,7 @@ const GeminiResponseSchema = z.object({
 export type GeminiClientOptions = {
   readonly credential?: string | undefined;
   readonly model: string;
+  readonly timeoutMs?: number;
   readonly fetchImpl?: typeof fetch;
 };
 
@@ -39,11 +41,13 @@ export class GeminiClient implements LLMClient {
   readonly provider = "gemini" as const;
   readonly model: string;
   private readonly credential: string | undefined;
+  private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: GeminiClientOptions) {
     this.credential = options.credential;
     this.model = options.model;
+    this.timeoutMs = normalizeTimeoutMs(options.timeoutMs);
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -61,10 +65,12 @@ export class GeminiClient implements LLMClient {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
     let response: Response;
+    const timeout = createTimeoutSignal(this.timeoutMs);
     try {
       response = await this.fetchImpl(url, {
         method: "POST",
         headers: { "content-type": "application/json", "x-goog-api-key": this.credential },
+        signal: timeout.signal,
         body: JSON.stringify({
           systemInstruction: buildSystemInstruction(request.messages),
           contents: buildGeminiContents(request.messages),
@@ -76,9 +82,19 @@ export class GeminiClient implements LLMClient {
         }),
       });
     } catch (error) {
+      if (isAbortError(error) || timeout.signal.aborted) {
+        throw new LLMProviderError(
+          "gemini",
+          "provider_timeout",
+          `Gemini request timed out after ${this.timeoutMs}ms.`,
+          { cause: error },
+        );
+      }
       throw new LLMProviderError("gemini", "provider_unavailable", "Gemini API request failed.", {
         cause: error,
       });
+    } finally {
+      timeout.clear();
     }
 
     const text = await response.text();

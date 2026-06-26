@@ -8,15 +8,24 @@ export * from "./tokenUsage.js";
 
 import { GeminiClient } from "./geminiClient.js";
 import type { LLMClient, LLMConfig } from "./LLMClient.js";
-import { loadLLMConfig } from "./LLMClient.js";
+import { LLMConfigSchema, loadLLMConfig } from "./LLMClient.js";
 import { OllamaClient } from "./ollamaClient.js";
 
 export function createLLMClient(config: LLMConfig = loadLLMConfig()): LLMClient {
-  if (config.provider === "gemini") {
-    return new GeminiClient({ credential: config.credential, model: config.geminiModel });
+  const parsed = LLMConfigSchema.parse(config);
+  if (parsed.provider === "gemini") {
+    return new GeminiClient({
+      credential: parsed.credential,
+      model: parsed.geminiModel,
+      timeoutMs: parsed.timeoutMs,
+    });
   }
 
-  return new OllamaClient({ baseUrl: config.ollamaBaseUrl, model: config.ollamaModel });
+  return new OllamaClient({
+    baseUrl: parsed.ollamaBaseUrl,
+    model: parsed.ollamaModel,
+    timeoutMs: parsed.timeoutMs,
+  });
 }
 
 export const packageName = "@opspilot/llm" as const;

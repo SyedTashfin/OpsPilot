@@ -55,8 +55,9 @@ export const LLMConfigSchema = z.object({
   ollamaModel: z.string().default("qwen2.5:7b-instruct"),
   credential: z.string().optional(),
   geminiModel: z.string().default("gemini-1.5-flash"),
+  timeoutMs: z.coerce.number().int().positive().default(90_000),
 });
-export type LLMConfig = z.infer<typeof LLMConfigSchema>;
+export type LLMConfig = z.input<typeof LLMConfigSchema>;
 
 export interface LLMClient {
   readonly provider: LLMProvider;
@@ -67,7 +68,12 @@ export interface LLMClient {
 
 export class LLMProviderError extends Error {
   readonly provider: LLMProvider;
-  readonly code: "provider_disabled" | "provider_unavailable" | "model_missing" | "bad_response";
+  readonly code:
+    | "provider_disabled"
+    | "provider_unavailable"
+    | "provider_timeout"
+    | "model_missing"
+    | "bad_response";
   readonly status: number | undefined;
 
   constructor(
@@ -80,17 +86,19 @@ export class LLMProviderError extends Error {
     this.name = "LLMProviderError";
     this.provider = provider;
     this.code = code;
-    this.status = options.status;
+    this.status = options.status ?? undefined;
   }
 }
 
 export function loadLLMConfig(env: NodeJS.ProcessEnv = process.env): LLMConfig {
   const k = ["GEMINI", "API", "KEY"].join("_");
-  return LLMConfigSchema.parse({
+  const raw = {
     provider: env.LLM_PROVIDER ?? "ollama",
     ollamaBaseUrl: env.OLLAMA_BASE_URL ?? "http://localhost:11434",
     ollamaModel: env.OLLAMA_CHAT_MODEL ?? "qwen2.5:7b-instruct",
     credential: env[k] || undefined,
     geminiModel: env.GEMINI_MODEL ?? "gemini-1.5-flash",
-  });
+    ...(env.LLM_TIMEOUT_MS ? { timeoutMs: env.LLM_TIMEOUT_MS } : {}),
+  };
+  return LLMConfigSchema.parse(raw);
 }

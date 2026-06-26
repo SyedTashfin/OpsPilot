@@ -6,6 +6,9 @@ import { buildServer } from "./server.js";
 
 class FakePool {
   query(sql: string): Promise<{ rows: unknown[]; rowCount: number }> {
+    if (sql.includes("FROM beautycorp_services") && sql.includes("WHERE id::text")) {
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    }
     if (sql.includes("FROM beautycorp_services") && sql.includes("ORDER BY name")) {
       return Promise.resolve({
         rows: [{ id: "svc_1", name: "recommendation-service" }],
@@ -102,6 +105,7 @@ const config = {
   autoMigrate: false,
   llmProvider: "ollama" as const,
   ollamaModel: "qwen2.5:7b-instruct",
+  llmTimeoutMs: 90_000,
   llmCredential: undefined,
   geminiModel: "gemini-1.5-flash",
 };
@@ -180,5 +184,27 @@ describe("api server", () => {
       payload: {},
     });
     expect(response.statusCode).toBe(400);
+    const body = response.json<{
+      readonly error?: {
+        readonly code?: string;
+        readonly message?: string;
+        readonly details?: unknown;
+      };
+    }>();
+    expect(body.error?.code).toBe("invalid_telemetry_batch");
+    expect(body.error?.message).toBe("Invalid telemetry batch.");
+    expect(typeof body.error?.details).toBe("object");
+  });
+
+  it("uses the standard API error envelope for missing resources", async () => {
+    const response = await app.inject({ method: "GET", url: "/api/services/missing-service" });
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({
+      error: {
+        code: "service_not_found",
+        message: "Service not found.",
+        details: {},
+      },
+    });
   });
 });

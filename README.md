@@ -96,6 +96,7 @@ Local defaults are configured in `.env.example`:
 LLM_PROVIDER=ollama
 OLLAMA_BASE_URL=http://ollama:11434
 OLLAMA_CHAT_MODEL=qwen2.5:7b-instruct
+LLM_TIMEOUT_MS=90000
 ```
 
 For host-local development outside Docker, use `OLLAMA_BASE_URL=http://localhost:11434`. Pull the default model before running provider smoke checks:

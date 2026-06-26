@@ -3,6 +3,7 @@ import { telemetryBatchSchema } from "@opspilot/contracts";
 import type { DemoRepository } from "../modules/demo/demo.repository.js";
 import type { IncidentRepository } from "../modules/incidents/incident.repository.js";
 import type { LogRepository } from "../modules/logs/log.repository.js";
+import { sendApiError } from "./api-error.js";
 
 export function registerDemoRoutes(
   app: FastifyInstance,
@@ -18,9 +19,13 @@ export function registerDemoRoutes(
   app.post("/api/demo/telemetry/batch", async (request, reply) => {
     const parsed = telemetryBatchSchema.safeParse(request.body);
     if (!parsed.success)
-      return reply
-        .code(400)
-        .send({ error: "invalid_telemetry_batch", details: parsed.error.flatten() });
+      return sendApiError(
+        reply,
+        400,
+        "invalid_telemetry_batch",
+        "Invalid telemetry batch.",
+        parsed.error.flatten(),
+      );
 
     await demoRepository.upsertServices(parsed.data.services);
     await demoRepository.upsertDeployments(parsed.data.deployments);
