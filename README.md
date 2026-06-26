@@ -82,6 +82,10 @@ When running against the local Compose database from the host, use the `DATABASE
 
 Issue #4 adds deterministic synthetic data generation for the fictional company **BeautyCorp**. The demo service generates services, deployments, logs, metrics, and the first recommendation-service latency incident scenario. It includes a real telemetry posting client for the API ingest route that lands in Issue #5, while keeping startup posting opt-in so the Docker stack remains healthy before that route exists.
 
+## API
+
+Issue #5 replaces the placeholder API with Fastify routes for health, services, logs, demo telemetry ingest, and V1 incident detection. Local Docker startup runs migrations automatically by default through `API_AUTO_MIGRATE=true`; set it to `false` if you want to manage migrations explicitly.
+
 ## Architecture source of truth
 
 - `docs/adr/0001-monorepo.md`
@@ -91,3 +95,4 @@ Issue #4 adds deterministic synthetic data generation for the fictional company 
 - `docs/issues/002-docker-compose-foundation.md`
 - `docs/issues/003-database-schema.md`
 - `docs/issues/004-beautycorp-demo-service.md`
+- `docs/issues/005-api-logs-incidents.md`

@@ -1,24 +1,23 @@
-import { createServer } from "node:http";
+import { loadConfig } from "./config.js";
+import { buildServer } from "./server.js";
 
 export function getServiceName(): string {
   return "@opspilot/api";
 }
 
 export function createHealthResponse(): Record<string, string> {
-  return { service: getServiceName(), status: "scaffolded" };
+  return { service: getServiceName(), status: "ready" };
 }
 
-export function startPlaceholderServer(port: number): void {
-  const server = createServer((_request, response) => {
-    response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify(createHealthResponse()));
-  });
-
-  server.listen(port, "0.0.0.0", () => {
-    console.log(JSON.stringify({ ...createHealthResponse(), port }));
-  });
+export async function startServer(): Promise<void> {
+  const config = loadConfig();
+  const app = await buildServer(config);
+  await app.listen({ port: config.port, host: "0.0.0.0" });
 }
 
 if (process.env.NODE_ENV !== "test") {
-  startPlaceholderServer(Number(process.env.PORT ?? 4000));
+  startServer().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
 }
