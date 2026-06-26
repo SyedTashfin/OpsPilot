@@ -1,5 +1,11 @@
-export const packageName = "@opspilot/database" as const;
-
-export function describePackage(): string {
-  return "Database migrations and access package.";
-}
+export { createPool, getDatabaseUrl, withDatabase } from "./client.js";
+export {
+  defaultMigrationsDirectory,
+  ensureMigrationTable,
+  getAppliedMigrations,
+  listMigrations,
+  resetDatabase,
+  runMigrations,
+  runSeed,
+} from "./migrations.js";
+export type { AppliedMigration, Migration, MigrationResult } from "./migrations.js";

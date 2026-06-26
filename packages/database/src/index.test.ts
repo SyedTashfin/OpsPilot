@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { describePackage, packageName } from "./index.js";
+import { getDatabaseUrl } from "./index.js";
 
-describe("@opspilot/database", () => {
-  it("exposes package metadata", () => {
-    expect(packageName).toBe("@opspilot/database");
-    expect(describePackage()).toContain("Database");
+describe("database config", () => {
+  it("reads DATABASE_URL from the provided environment", () => {
+    expect(getDatabaseUrl({ DATABASE_URL: "postgres://example" })).toBe("postgres://example");
+  });
+
+  it("fails fast when DATABASE_URL is absent", () => {
+    expect(() => getDatabaseUrl({})).toThrow(/DATABASE_URL is required/);
   });
 });

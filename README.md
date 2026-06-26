@@ -66,9 +66,23 @@ Pull local models explicitly when needed:
 ./scripts/ollama/pull-models.sh
 ```
 
+## Database migrations
+
+Issue #3 adds PostgreSQL/pgvector migrations and deterministic BeautyCorp seed data:
+
+```bash
+pnpm db:migrate
+pnpm db:seed
+pnpm db:reset
+```
+
+When running against the local Compose database from the host, use the `DATABASE_URL` from `.env.example` or export it in your shell before invoking the scripts.
+
 ## Architecture source of truth
 
 - `docs/adr/0001-monorepo.md`
 - `docs/adr/0002-langfuse-observability.md`
+- `docs/architecture/database-schema.md`
 - `docs/issues/001-bootstrap-monorepo.md`
 - `docs/issues/002-docker-compose-foundation.md`
+- `docs/issues/003-database-schema.md`
