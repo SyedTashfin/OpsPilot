@@ -1,5 +1,6 @@
 import type pg from "pg";
 import { afterAll, describe, expect, it } from "vitest";
+import { loadConfig } from "./config.js";
 import { createHealthResponse, getServiceName } from "./main.js";
 import { buildServer } from "./server.js";
 
@@ -27,6 +28,10 @@ const config = {
   ollamaBaseUrl: "http" + "://127.0.0.1:9",
   langfuseBaseUrl: "http" + "://127.0.0.1:10",
   autoMigrate: false,
+  llmProvider: "ollama" as const,
+  ollamaModel: "qwen2.5:7b-instruct",
+  llmCredential: undefined,
+  geminiModel: "gemini-1.5-flash",
 };
 
 const app = await buildServer(config, { pool: new FakePool() as unknown as pg.Pool });
@@ -39,6 +44,10 @@ describe("api server", () => {
   it("identifies itself", () => {
     expect(getServiceName()).toBe("@opspilot/api");
     expect(createHealthResponse()).toEqual({ service: "@opspilot/api", status: "ready" });
+  });
+
+  it("rejects invalid LLM provider config instead of silently falling back", () => {
+    expect(() => loadConfig({ LLM_PROVIDER: "gemni" })).toThrow();
   });
 
   it("serves health", async () => {
@@ -56,6 +65,17 @@ describe("api server", () => {
     const response = await app.inject({ method: "GET", url: "/api/services" });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ items: [{ id: "svc_1", name: "recommendation-service" }] });
+  });
+
+  it("serves llm provider status", async () => {
+    const response = await app.inject({ method: "GET", url: "/api/llm/status" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        provider: "ollama",
+        model: "qwen2.5:7b-instruct",
+      }),
+    );
   });
 
   it("rejects invalid telemetry", async () => {

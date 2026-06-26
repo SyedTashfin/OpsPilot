@@ -5,7 +5,7 @@
   "description": "LLM provider interfaces and clients.",
   "type": "module",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "types": "src/index.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
@@ -15,5 +15,8 @@
   },
   "devDependencies": {
     "tsx": "^4.19.2"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
   }
 }
