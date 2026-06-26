@@ -143,7 +143,39 @@ GET /api/investigations/:investigationId
 GET /api/investigations/:investigationId/report
 ```
 
-The returned report contains `summary`, `probableRootCause`, `confidence`, `evidence[]`, `citedRunbooks[]`, and `recommendedNextDiagnostics`. The workflow does not perform remediation, infrastructure changes, autonomous retries, chat, memory, Langfuse tracing, or dashboard work. The read APIs are application-owned and do not depend on Langfuse.
+The returned report contains `summary`, `probableRootCause`, `confidence`, `evidence[]`, `citedRunbooks[]`, and `recommendedNextDiagnostics`. The workflow does not perform remediation, infrastructure changes, autonomous retries, chat, memory, dashboard work, or evaluation. The read APIs are application-owned and do not depend on Langfuse.
+
+## Langfuse observability
+
+Issue #9 adds optional Langfuse tracing for the investigation workflow. Langfuse is additive: investigations, persistence, and API responses continue when Langfuse is disabled or unavailable.
+
+Configure local Langfuse in `.env`:
+
+```bash
+LANGFUSE_ENABLED=true
+LANGFUSE_PUBLIC_KEY=<local-public-key>
+LANGFUSE_SECRET_KEY=<local-secret-key>
+LANGFUSE_BASE_URL=http://langfuse-web:3000
+LANGFUSE_ENVIRONMENT=local
+```
+
+Disable tracing with either `LANGFUSE_ENABLED=false` or empty `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` values.
+
+Expected trace shape:
+
+- one `investigation.workflow` trace per investigation
+- four tool observations: `query_logs`, `query_metrics`, `get_deployments`, `search_runbooks`
+- one `investigation.llm_generation` observation
+- completion metadata for confidence, cited runbooks, evidence count, status, and duration
+
+The existing investigation APIs include `langfuseTraceId` when tracing is enabled:
+
+```text
+GET /api/investigations/:investigationId
+GET /api/investigations/:investigationId/report
+```
+
+See `docs/architecture/langfuse-observability.md` for troubleshooting and the observability boundary.
 
 ## Running a Complete Investigation Demo
 
@@ -213,5 +245,6 @@ GitHub Issues are the source of truth for implementation planning and execution.
 - `docs/adr/0001-monorepo.md`
 - `docs/adr/0002-langfuse-observability.md`
 - `docs/architecture/database-schema.md`
+- `docs/architecture/langfuse-observability.md`
 - `docs/architecture/llm-provider-abstraction.md`
 - `docs/architecture/runbook-rag.md`

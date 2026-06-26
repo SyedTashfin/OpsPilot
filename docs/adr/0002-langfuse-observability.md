@@ -10,7 +10,7 @@ OpsPilot V1 must demonstrate LLMOps and observability without rebuilding generic
 
 ## Decision
 
-Run Langfuse through Docker Compose for local development and integrate OpsPilot with Langfuse for LLM traces, prompt executions, responses, latency, token usage, metadata, tool observations, and evaluation scores.
+Run Langfuse through Docker Compose for local development and integrate OpsPilot with Langfuse for investigation traces, tool observations, LLM generation records, latency, token usage, prompt/completion history, and completion metadata.
 
 ## Rationale
 
@@ -18,6 +18,8 @@ Langfuse is open-source, self-hostable, and purpose-built for LLM observability 
 
 ## Consequences
 
-- OpsPilot stores Langfuse trace/score identifiers and product summaries, not a duplicate observability backend.
+- OpsPilot stores Langfuse trace identifiers and product summaries, not a duplicate observability backend.
+- Langfuse is optional. Missing credentials or Langfuse outages must not block investigations, persistence, or API responses.
+- Evaluation scores remain future work; Issue #9 only adds observability.
 - Local development requires additional containers: Langfuse web, worker, Postgres, ClickHouse, Redis, and MinIO.
 - Any future cloud deployment must replace local secrets before non-local use.

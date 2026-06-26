@@ -28,6 +28,7 @@ class FakePool {
             provider: "ollama",
             model: "test-model",
             promptVersion: "incident-investigation-v1",
+            langfuseTraceId: "investigation-1",
             startedAt: "2026-06-26T09:58:00.000Z",
             completedAt: "2026-06-26T09:59:00.000Z",
             latencyMs: 1000,
@@ -102,6 +103,10 @@ const config = {
   databaseUrl: "postgres" + "://test",
   ollamaBaseUrl: "http" + "://127.0.0.1:9",
   langfuseBaseUrl: "http" + "://127.0.0.1:10",
+  langfusePublicKey: undefined,
+  langfuseSecretKey: undefined,
+  langfuseEnabled: false,
+  langfuseEnvironment: "test",
   autoMigrate: false,
   llmProvider: "ollama" as const,
   ollamaModel: "qwen2.5:7b-instruct",
@@ -159,6 +164,7 @@ describe("api server", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       id: "inv-1",
+      langfuseTraceId: "investigation-1",
       probableRootCause: "Feature-store timeout retry amplification.",
       toolCalls: [expect.objectContaining({ toolName: "query_logs" })],
       evidence: [expect.objectContaining({ source: "log" })],
@@ -171,6 +177,7 @@ describe("api server", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       investigationId: "inv-1",
+      langfuseTraceId: "investigation-1",
       serviceName: "recommendation-service",
       probableRootCause: "Feature-store timeout retry amplification.",
       supportingToolCalls: [expect.objectContaining({ toolName: "query_logs" })],
