@@ -46,6 +46,9 @@ importers:
       "@opspilot/database":
         specifier: workspace:*
         version: link:../../packages/database
+      "@opspilot/llm":
+        specifier: workspace:*
+        version: link:../../packages/llm
       "@opspilot/rag":
         specifier: workspace:*
         version: link:../../packages/rag
@@ -108,6 +111,10 @@ importers:
         version: 4.22.4
 
   packages/llm:
+    dependencies:
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
     devDependencies:
       tsx:
         specifier: ^4.19.2

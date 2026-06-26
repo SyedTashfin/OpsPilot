@@ -86,6 +86,37 @@ Issue #4 adds deterministic synthetic data generation for the fictional company 
 
 Issue #5 replaces the placeholder API with Fastify routes for health, services, logs, demo telemetry ingest, and V1 incident detection. Local Docker startup runs migrations automatically by default through `API_AUTO_MIGRATE=true`; set it to `false` if you want to manage migrations explicitly.
 
+## LLM providers
+
+Issue #7 adds the `@opspilot/llm` provider abstraction. Ollama is the default local provider and Gemini is optional.
+
+Local defaults are configured in `.env.example`:
+
+```bash
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_CHAT_MODEL=qwen2.5:7b-instruct
+```
+
+For host-local development outside Docker, use `OLLAMA_BASE_URL=http://localhost:11434`. Pull the default model before running provider smoke checks:
+
+```bash
+ollama pull qwen2.5:7b-instruct
+```
+
+Gemini stays disabled unless both are set explicitly:
+
+```bash
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=...
+```
+
+API health surface:
+
+```text
+GET /api/llm/status
+```
+
 ## Runbook RAG
 
 Issue #6 adds repeatable runbook ingestion and pgvector retrieval for investigation context. Default embeddings use Ollama; deterministic embeddings are available only for local smoke tests.
@@ -115,4 +146,5 @@ GitHub Issues are the source of truth for implementation planning and execution.
 - `docs/adr/0001-monorepo.md`
 - `docs/adr/0002-langfuse-observability.md`
 - `docs/architecture/database-schema.md`
+- `docs/architecture/llm-provider-abstraction.md`
 - `docs/architecture/runbook-rag.md`
