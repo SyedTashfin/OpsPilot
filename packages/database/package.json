@@ -1,6 +1,6 @@
 {
   "name": "@opspilot/database",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Database migrations and access package.",
   "type": "module",

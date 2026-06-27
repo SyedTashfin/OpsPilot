@@ -10,9 +10,21 @@ importers:
       "@eslint/js":
         specifier: ^9.18.0
         version: 9.39.4
+      "@opspilot/database":
+        specifier: workspace:^
+        version: link:packages/database
+      "@opspilot/llm":
+        specifier: workspace:^
+        version: link:packages/llm
+      "@opspilot/rag":
+        specifier: workspace:^
+        version: link:packages/rag
       "@types/node":
         specifier: ^22.10.7
         version: 22.20.0
+      "@types/pg":
+        specifier: ^8.11.11
+        version: 8.20.0
       eslint:
         specifier: ^9.18.0
         version: 9.39.4

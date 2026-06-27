@@ -1,6 +1,6 @@
 # Runbook RAG
 
-Issue #6 adds runbook ingestion and pgvector retrieval for the V1 investigation workflow.
+OpsPilot v1.0.0 includes runbook ingestion and pgvector retrieval for the V1 investigation workflow.
 
 ## Source data
 

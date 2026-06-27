@@ -1,6 +1,6 @@
 # Langfuse Observability
 
-Issue #9 adds optional Langfuse observability for the V1 investigation workflow.
+OpsPilot v1.0.0 includes optional Langfuse observability for the V1 investigation workflow.
 
 ## Boundary
 
@@ -19,7 +19,7 @@ Langfuse owns observability:
 - LLM generation records
 - prompt/completion history
 - token usage metadata
-- future evaluation surfaces
+- trace inspection surfaces
 
 Langfuse is not required for the investigation to succeed. When Langfuse is disabled, missing, or unavailable, OpsPilot continues the workflow and persistence path normally.
 

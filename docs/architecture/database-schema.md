@@ -5,7 +5,7 @@ OpsPilot V1 uses PostgreSQL with pgvector. The database supports the single appr
 1. BeautyCorp synthetic services produce logs and metrics.
 2. Incidents are detected from synthetic operational signals.
 3. A single investigation agent queries logs, deployments, metrics, and runbooks.
-4. Investigation summaries, tool calls, citations, evaluations, and Langfuse trace IDs are persisted for the dashboard.
+4. Investigation summaries, tool calls, citations, and optional Langfuse trace IDs are persisted for the dashboard.
 
 ## Extensions
 
@@ -27,7 +27,7 @@ OpsPilot V1 uses PostgreSQL with pgvector. The database supports the single appr
 | `investigations`      | One investigation run per incident.                                                                 |
 | `investigation_steps` | Product-facing agent timeline.                                                                      |
 | `tool_calls`          | Application-level tool call records.                                                                |
-| `evaluations`         | Evaluation scores mirrored from Langfuse for dashboard display.                                     |
+| `evaluations`         | Reserved schema surface for future evaluation records; no V1 evaluation feature is implemented.     |
 
 ## Migration commands
 
@@ -49,8 +49,8 @@ The seed migration inserts five BeautyCorp services and service runbooks:
 - `payment-service`
 - `image-analysis-service`
 
-The recommendation service seed includes the initial latency incident context needed by later V1 issues: deployment `rec-2026.06.1` and a runbook describing feature-store timeout investigation.
+The recommendation service seed includes the initial latency incident context: deployment `rec-2026.06.1` and a runbook describing feature-store timeout investigation.
 
 ## Embedding dimension
 
-`runbook_chunks.embedding` is currently `vector(768)` per the approved V1 design. Before Issue #6 indexes real embeddings, confirm that the configured Ollama embedding model returns 768-dimensional vectors. If the model differs, change the dimension through a migration before storing embeddings.
+`runbook_chunks.embedding` is `vector(768)`. The ingestion path validates embedding dimensions before insert and fails if the configured embedding model returns a different dimension.

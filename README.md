@@ -1,31 +1,95 @@
 # OpsPilot
 
-OpsPilot is a local-first AI operations copilot MVP for investigating synthetic production incidents at the fictional company **BeautyCorp**.
+OpsPilot is a local-first AI operations copilot that investigates a synthetic production incident end-to-end: telemetry is generated, an incident is detected, runbooks are retrieved with RAG, a single LLM call produces a structured root-cause report, and the investigation is visualized in a dark engineering dashboard with optional Langfuse tracing.
 
-The V1 product is intentionally narrow: a demo microservice emits logs, an incident is detected, one AI agent investigates logs and runbooks, and the result is shown in a web dashboard with Langfuse-backed observability.
+The project is intentionally narrow and production-shaped. It is built to demonstrate AI engineering, observability, deterministic workflow design, provider abstraction, and release-quality local infrastructure without pretending to be a full enterprise incident platform.
 
-## V1 scope
+![OpsPilot dashboard overview](docs/assets/screenshots/issue-010-dashboard/01-overview-page.png)
 
-Included in V1:
+## Why this exists
 
-- Next.js dashboard
-- Fastify API
-- PostgreSQL with pgvector
-- Ollama/Qwen as the default local LLM provider
-- Optional Gemini provider
-- Langfuse tracing/evaluation integration
-- Docker Compose-only local infrastructure
-- Synthetic BeautyCorp services and incidents
+Most AI demos stop at chat. OpsPilot shows the harder engineering layer around an AI system:
 
-Explicitly out of scope for V1: Kubernetes, Terraform, ArgoCD, multi-tenancy, multiple agents, automatic remediation, approval workflows, complex RBAC, and cloud deployment.
+- deterministic orchestration before the model call
+- typed provider abstraction for local/cloud LLMs
+- RAG over operational runbooks
+- persisted investigations and reports
+- optional tracing that observes the system without becoming business logic
+- reproducible Docker-based local demo
 
-## Prerequisites
+The fictional company is **BeautyCorp**. V1 focuses on one realistic incident: a recommendation-service latency spike after a feature-store timeout deployment.
+
+## What V1 demonstrates
+
+- **AI investigation workflow**: application-owned tool sequence, one structured LLM generation, persisted report.
+- **Observability**: optional Langfuse trace per investigation with tool and generation observations.
+- **RAG**: pgvector-backed runbook ingestion and retrieval.
+- **Provider abstraction**: Ollama by default, Gemini optional, deterministic fake LLM for smoke tests.
+- **Platform engineering**: Fastify API, PostgreSQL/pgvector, Docker Compose, typed TypeScript monorepo.
+- **Dashboard**: production-style dark UI for incidents, evidence, tool timeline, root cause, confidence, and trace links.
+
+Explicitly out of V1 scope: evaluation, prompt management, Kubernetes, Terraform, cloud deployment, multi-tenancy, RBAC, automatic remediation, multi-agent planning, and enterprise integrations.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Demo[BeautyCorp demo service] -->|logs metrics deployments incidents| API[Fastify API]
+  Web[OpsPilot dashboard] -->|existing REST APIs| API
+  API --> DB[(PostgreSQL + pgvector)]
+  API --> RAG[Runbook RAG]
+  RAG --> DB
+  API --> LLM[LLM provider abstraction]
+  LLM --> Ollama[Ollama / local model]
+  LLM -. optional .-> Gemini[Gemini]
+  API -. optional traces .-> Langfuse[Langfuse]
+```
+
+Investigation flow:
+
+```mermaid
+sequenceDiagram
+  participant User as Dashboard/API caller
+  participant API as Fastify API
+  participant DB as PostgreSQL + pgvector
+  participant RAG as Runbook RAG
+  participant LLM as LLM Provider
+  participant LF as Langfuse optional
+
+  User->>API: POST /api/incidents/:id/investigations
+  API->>DB: Load incident
+  API->>DB: Query logs
+  API->>DB: Query metrics
+  API->>DB: Query deployments
+  API->>RAG: Search runbooks
+  RAG->>DB: Vector search
+  API->>LLM: One structured JSON generation
+  API->>DB: Persist steps, evidence, report
+  API-->>LF: Trace workflow/tool/generation metadata
+  API-->>User: investigationId + report
+```
+
+See [`docs/architecture/README.md`](docs/architecture/README.md) for the complete Mermaid diagram set.
+
+## Screenshots
+
+| Overview                                                                      | Incident detail                                                                        |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| ![Overview](docs/assets/screenshots/issue-010-dashboard/01-overview-page.png) | ![Incident detail](docs/assets/screenshots/issue-010-dashboard/02-incident-detail.png) |
+
+| Tool timeline                                                                          | Evidence                                                                      | Langfuse link                                                                              |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| ![Timeline](docs/assets/screenshots/issue-010-dashboard/03-investigation-timeline.png) | ![Evidence](docs/assets/screenshots/issue-010-dashboard/04-evidence-view.png) | ![Langfuse](docs/assets/screenshots/issue-010-dashboard/05-langfuse-trace-integration.png) |
+
+## Quick start
+
+Prerequisites:
 
 - Node.js 22+
 - pnpm 9.15.5
 - Docker Desktop / Docker Engine
 
-## Local development
+Install and run local quality checks:
 
 ```bash
 pnpm install
@@ -35,9 +99,7 @@ pnpm test
 pnpm build
 ```
 
-## Docker Compose
-
-Issue #2 adds the local container foundation:
+Start the complete local stack:
 
 ```bash
 cp .env.example .env
@@ -46,173 +108,50 @@ pnpm docker:build
 pnpm docker:up
 ```
 
-Primary local endpoints once containers are running:
-
-- OpsPilot web placeholder: <http://localhost:3000>
-- OpsPilot API placeholder: <http://localhost:4000>
-- Langfuse UI: <http://localhost:3001>
-- Ollama: <http://localhost:11434>
-- OpsPilot Postgres: `localhost:5432`
-
-If a host Ollama process already occupies port `11434`, keep the internal Compose service name unchanged and override only the host port:
+If a host Ollama process already uses port `11434`, override only the host port:
 
 ```bash
 OLLAMA_PORT=11435 pnpm docker:up
 ```
 
-Pull local models explicitly when needed:
+Local endpoints:
+
+| Service    | URL                      |
+| ---------- | ------------------------ |
+| Dashboard  | <http://localhost:3000>  |
+| API        | <http://localhost:4000>  |
+| Langfuse   | <http://localhost:3001>  |
+| Ollama     | <http://localhost:11434> |
+| PostgreSQL | `localhost:5432`         |
+
+Stop the stack:
 
 ```bash
-./scripts/ollama/pull-models.sh
+pnpm docker:down
 ```
 
-## Database migrations
+## Run the V1 demo
 
-Issue #3 adds PostgreSQL/pgvector migrations and deterministic BeautyCorp seed data:
+The demo resets the local database, runs migrations, seeds BeautyCorp, ingests runbooks, generates deterministic telemetry, detects the incident, runs an investigation, and prints the report.
+
+Fast deterministic smoke path:
 
 ```bash
-pnpm db:migrate
-pnpm db:seed
-pnpm db:reset
-```
-
-When running against the local Compose database from the host, use the `DATABASE_URL` from `.env.example` or export it in your shell before invoking the scripts.
-
-## BeautyCorp demo service
-
-Issue #4 adds deterministic synthetic data generation for the fictional company **BeautyCorp**. The demo service generates services, deployments, logs, metrics, and the first recommendation-service latency incident scenario. It includes a real telemetry posting client for the API ingest route that lands in Issue #5, while keeping startup posting opt-in so the Docker stack remains healthy before that route exists.
-
-## API
-
-Issue #5 replaces the placeholder API with Fastify routes for health, services, logs, demo telemetry ingest, and V1 incident detection. Local Docker startup runs migrations automatically by default through `API_AUTO_MIGRATE=true`; set it to `false` if you want to manage migrations explicitly.
-
-## LLM providers
-
-Issue #7 adds the `@opspilot/llm` provider abstraction. Ollama is the default local provider and Gemini is optional.
-
-Local defaults are configured in `.env.example`:
-
-```bash
-LLM_PROVIDER=ollama
-OLLAMA_BASE_URL=http://ollama:11434
-OLLAMA_CHAT_MODEL=qwen2.5:7b-instruct
-LLM_TIMEOUT_MS=90000
-```
-
-For host-local development outside Docker, use `OLLAMA_BASE_URL=http://localhost:11434`. Pull the default model before running provider smoke checks:
-
-```bash
-ollama pull qwen2.5:7b-instruct
-```
-
-Gemini stays disabled unless both are set explicitly:
-
-```bash
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=...
-```
-
-API health surface:
-
-```text
-GET /api/llm/status
-```
-
-## Runbook RAG
-
-Issue #6 adds repeatable runbook ingestion and pgvector retrieval for investigation context. Default embeddings use Ollama; deterministic embeddings are available only for local smoke tests.
-
-```bash
-pnpm rag:ingest
-pnpm rag:search "feature store timeout recommendation latency"
-```
-
-API search endpoint:
-
-```text
-GET /api/runbooks/search?q=feature%20store%20timeout&limit=5
-```
-
-## Investigation workflow
-
-Issue #8 adds the first single-agent investigation workflow. It is intentionally deterministic: the application loads the incident, queries logs, summarizes metrics, loads deployment context, retrieves runbook chunks, then makes exactly one LLM call with a structured JSON-output prompt.
-
-```text
-POST /api/incidents/:incidentId/investigations
-GET /api/investigations/:investigationId
-GET /api/investigations/:investigationId/report
-```
-
-The returned report contains `summary`, `probableRootCause`, `confidence`, `evidence[]`, `citedRunbooks[]`, and `recommendedNextDiagnostics`. The workflow does not perform remediation, infrastructure changes, autonomous retries, chat, memory, dashboard work, or evaluation. The read APIs are application-owned and do not depend on Langfuse.
-
-## Langfuse observability
-
-Issue #9 adds optional Langfuse tracing for the investigation workflow. Langfuse is additive: investigations, persistence, and API responses continue when Langfuse is disabled or unavailable.
-
-Configure local Langfuse in `.env`:
-
-```bash
-LANGFUSE_ENABLED=true
-LANGFUSE_PUBLIC_KEY=<local-public-key>
-LANGFUSE_SECRET_KEY=<local-secret-key>
-LANGFUSE_BASE_URL=http://langfuse-web:3000
-LANGFUSE_ENVIRONMENT=local
-```
-
-Disable tracing with either `LANGFUSE_ENABLED=false` or empty `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` values.
-
-Expected trace shape:
-
-- one `investigation.workflow` trace per investigation
-- four tool observations: `query_logs`, `query_metrics`, `get_deployments`, `search_runbooks`
-- one `investigation.llm_generation` observation
-- completion metadata for confidence, cited runbooks, evidence count, status, and duration
-
-The existing investigation APIs include `langfuseTraceId` when tracing is enabled:
-
-```text
-GET /api/investigations/:investigationId
-GET /api/investigations/:investigationId/report
-```
-
-See `docs/architecture/langfuse-observability.md` for troubleshooting and the observability boundary.
-
-## Running a Complete Investigation Demo
-
-Issue 8.5 adds a no-manual-API-calls local demo command:
-
-```bash
+OLLAMA_PORT=11435 pnpm docker:up
+DATABASE_URL=postgres://opspilot:opspilot@localhost:5432/opspilot \
+RAG_EMBEDDING_PROVIDER=deterministic \
+OPSPILOT_DEMO_FAKE_LLM=true \
 pnpm demo:investigation
 ```
 
-The script resets the local database, runs migrations, seeds BeautyCorp, ingests runbooks, generates deterministic telemetry, detects the recommendation-service incident, executes the investigation, fetches the completed report, and prints a readable summary.
-
-Required services and models:
-
-- Postgres with pgvector available through `DATABASE_URL`.
-- Ollama reachable through `OLLAMA_BASE_URL` when using the default `LLM_PROVIDER=ollama`.
-- Default chat model pulled locally: `qwen2.5:7b-instruct`.
-
-Typical local flow:
+Production-like local path through Ollama:
 
 ```bash
-cp .env.example .env
-pnpm docker:up
 ollama pull qwen2.5:7b-instruct
 DATABASE_URL=postgres://opspilot:opspilot@localhost:5432/opspilot \
 OLLAMA_BASE_URL=http://localhost:11434 \
 pnpm demo:investigation
 ```
-
-For a faster runbook-ingestion smoke path, the script defaults RAG embeddings to deterministic embeddings unless `RAG_EMBEDDING_PROVIDER` is set. This keeps the demo focused on the investigation LLM call.
-
-For deterministic CI/local smoke testing without waiting on a local model, set:
-
-```bash
-OPSPILOT_DEMO_FAKE_LLM=true pnpm demo:investigation
-```
-
-Leave `OPSPILOT_DEMO_FAKE_LLM` unset when you want the production-like path through the configured LLM provider.
 
 Expected output includes:
 
@@ -225,26 +164,146 @@ Expected output includes:
 - cited runbooks
 - recommended next diagnostics
 
-Troubleshooting:
+## Langfuse integration
 
-- If Postgres connection fails, verify `pnpm docker:up` is running and `DATABASE_URL` points at the host-mapped Postgres port.
-- If Ollama returns a missing-model error, run `ollama pull qwen2.5:7b-instruct` or set `OLLAMA_CHAT_MODEL` to a model you have pulled.
-- If the model returns invalid JSON, OpsPilot persists the raw response, parser error, and timestamp in investigation steps for debugging.
+Langfuse is optional. OpsPilot continues to run if it is disabled or unavailable.
+
+Configured local defaults in `.env.example`:
+
+```bash
+LANGFUSE_ENABLED=true
+LANGFUSE_PUBLIC_KEY=pk-lf-opspilot-dev
+LANGFUSE_SECRET_KEY=<local-secret-key>
+LANGFUSE_BASE_URL=http://langfuse-web:3000
+LANGFUSE_ENVIRONMENT=local
+```
+
+Disable tracing with either:
+
+```bash
+LANGFUSE_ENABLED=false
+```
+
+or by leaving the Langfuse credentials empty.
+
+Expected trace shape:
+
+- one `investigation.workflow` trace per investigation
+- tool observations: `query_logs`, `query_metrics`, `get_deployments`, `search_runbooks`
+- one `investigation.llm_generation` observation
+- completion metadata: confidence, evidence count, cited runbooks, status, duration
+
+The dashboard links to Langfuse by trace ID. It does not embed Langfuse.
+
+## API surface
+
+Core V1 endpoints:
+
+```text
+GET  /api/health
+GET  /api/llm/status
+GET  /api/incidents
+POST /api/incidents/:incidentId/investigations
+GET  /api/investigations/:investigationId
+GET  /api/investigations/:investigationId/report
+GET  /api/runbooks/search?q=feature%20store%20timeout&limit=5
+```
+
+The investigation report includes `summary`, `probableRootCause`, `confidence`, `evidence[]`, `citedRunbooks[]`, `recommendedNextDiagnostics[]`, and `langfuseTraceId` when tracing is enabled.
+
+## Repository structure
+
+```text
+apps/
+  api/            Fastify API and investigation workflow
+  demo-service/   Deterministic BeautyCorp telemetry generator
+  web/            Node-served dashboard HTML/CSS/JS
+packages/
+  contracts/      Shared schemas and DTOs
+  database/       PostgreSQL/pgvector migrations and seed helpers
+  domain/         Shared domain types
+  llm/            LLM provider abstraction, Ollama, Gemini, timeouts
+  rag/            Runbook ingestion, embeddings, vector retrieval
+  telemetry/      Optional Langfuse observer boundary
+scripts/
+  db/             Migration, reset, seed CLIs
+  demo/           End-to-end investigation demo
+  rag/            Runbook ingestion/search CLIs
+docs/
+  architecture/   Diagrams and subsystem notes
+  adr/            Architecture decision records
+  assets/         Dashboard screenshots
+infra/
+  compose/        Docker Compose stack
+  docker/         App Dockerfiles
+```
+
+## Environment variables
+
+Most local defaults are in `.env.example`. Important variables:
+
+| Variable                                      | Purpose                                          |
+| --------------------------------------------- | ------------------------------------------------ |
+| `DATABASE_URL`                                | PostgreSQL connection string                     |
+| `API_AUTO_MIGRATE`                            | Run migrations on API startup in local Compose   |
+| `LLM_PROVIDER`                                | `ollama` or `gemini`                             |
+| `OLLAMA_BASE_URL`                             | Ollama API base URL inside/outside Docker        |
+| `OLLAMA_CHAT_MODEL`                           | Chat model for investigations                    |
+| `LLM_TIMEOUT_MS`                              | Provider timeout bound                           |
+| `RAG_EMBEDDING_PROVIDER`                      | `ollama` or deterministic local smoke embeddings |
+| `LANGFUSE_ENABLED`                            | Enable/disable optional tracing                  |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Langfuse credentials                             |
+| `WEB_PUBLIC_API_URL`                          | Dashboard API URL                                |
+
+`.env.example` contains local development secrets for self-hosted Langfuse only. Replace them before any non-local use.
+
+## Quality gates
+
+Release verification uses:
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm format:check
+pnpm docker:config
+pnpm docker:build
+```
+
+Additional RC smoke checks run:
+
+- Compose startup
+- deterministic investigation demo
+- Langfuse trace API verification
+- dashboard browser smoke via Playwright
+
+## Known limitations
+
+- Synthetic data only; no production integrations.
+- One deterministic investigation path; no planner or multi-agent loop.
+- No evaluation suite in V1.
+- No prompt management UI.
+- No authentication, RBAC, tenancy, audit log, or user management.
+- Docker Compose local deployment only; no Kubernetes/cloud deployment.
+- Local Langfuse credentials are development defaults.
+
+## Roadmap
+
+- **V2 production hardening**: CI workflows, auth-light, release automation, operational docs, richer smoke tests.
+- **Evaluation**: golden incidents, regression scoring, answer quality checks, trace-linked evaluation reports.
+- **Prompt management**: versioned prompts, prompt review workflow, model comparison.
+- **Integrations**: real log/metric sources, issue tracker hooks, Slack/PagerDuty-style surfaces.
+- **Enterprise**: RBAC, tenancy, audit logs, policy controls, deployment templates.
 
 ## Project management
 
-GitHub Issues are the source of truth for implementation planning and execution. Do not use local Markdown issue files as the primary task tracker.
+GitHub Issues and the project board are the source of truth.
 
 - Issues: <https://github.com/SyedTashfin/OpsPilot/issues>
 - Project board: <https://github.com/users/SyedTashfin/projects/2>
-- Workflow: `docs/github-workflow.md`
-- Historical completed Markdown issue files: `docs/archive/completed-issues/`
+- Workflow: [`docs/github-workflow.md`](docs/github-workflow.md)
 
-## Architecture source of truth
+## License
 
-- `docs/adr/0001-monorepo.md`
-- `docs/adr/0002-langfuse-observability.md`
-- `docs/architecture/database-schema.md`
-- `docs/architecture/langfuse-observability.md`
-- `docs/architecture/llm-provider-abstraction.md`
-- `docs/architecture/runbook-rag.md`
+MIT. See [`LICENSE`](LICENSE).

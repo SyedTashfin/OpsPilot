@@ -1,6 +1,6 @@
 # LLM provider abstraction
 
-Issue #7 introduces the `@opspilot/llm` package as the only provider-facing boundary for chat model calls.
+The `@opspilot/llm` package is the only provider-facing boundary for chat model calls.
 
 ## Providers
 
@@ -36,4 +36,4 @@ Request/response contracts use Zod schemas exported by `@opspilot/llm`.
 
 ## Scope exclusions
 
-This issue intentionally does not implement the investigation agent, Langfuse tracing, dashboard UI, evaluation service, multi-agent orchestration, cloud deployment, Kubernetes, or auto-remediation.
+The provider abstraction intentionally does not own investigation orchestration, Langfuse tracing, dashboard rendering, evaluation, multi-agent orchestration, cloud deployment, Kubernetes, or auto-remediation.

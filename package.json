@@ -1,6 +1,6 @@
 {
   "name": "opspilot",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "OpsPilot is a local-first AI operations copilot MVP for incident investigation over synthetic BeautyCorp logs and runbooks.",
   "packageManager": "pnpm@9.15.5",
@@ -28,7 +28,11 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
+    "@opspilot/database": "workspace:^",
+    "@opspilot/llm": "workspace:^",
+    "@opspilot/rag": "workspace:^",
     "@types/node": "^22.10.7",
+    "@types/pg": "^8.11.11",
     "eslint": "^9.18.0",
     "prettier": "^3.4.2",
     "tsx": "^4.19.2",
