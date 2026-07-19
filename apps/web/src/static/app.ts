@@ -7,6 +7,12 @@ const state = {
   report: null,
   apiHealth: null,
   llmStatus: null,
+  investigationHistory: [],
+  historyNextCursor: null,
+  historyLoading: false,
+  historyError: null,
+  csrfToken: null,
+  authenticated: false,
   search: '',
   severity: 'all',
 };
@@ -18,12 +24,15 @@ const formatMs = (value) => typeof value === 'number' ? value + ' ms' : '—';
 const percent = (value) => typeof value === 'number' ? Math.round(value * 100) + '%' : '—';
 const monoJson = (value) => '<pre>' + escapeHtml(JSON.stringify(value ?? {}, null, 2)) + '</pre>';
 
-async function api(path, options) {
+async function api(path, options = {}) {
+  const headers = { 'content-type': 'application/json', ...(options.headers ?? {}) };
+  if (state.csrfToken && options.method && options.method !== 'GET') headers['x-opspilot-csrf'] = state.csrfToken;
   const response = await fetch(config.apiBaseUrl.replace(/\/$/, '') + path, {
-    headers: { 'content-type': 'application/json' },
+    credentials: 'include',
     ...options,
+    headers,
   });
-  if (!response.ok) throw new Error(path + ' failed: ' + response.status);
+  if (!response.ok) { const error = new Error(path + ' failed: ' + response.status); error.status = response.status; throw error; }
   return response.json();
 }
 
@@ -32,13 +41,28 @@ function showAlert(message, tone = 'warn') {
 }
 function clearAlert() { $('alertRegion').innerHTML = ''; }
 
+async function restoreSession() {
+  try {
+    const session = await api('/api/auth/session');
+    state.authenticated = Boolean(session.authenticated);
+    state.csrfToken = session.csrfToken ?? null;
+  } catch {
+    state.authenticated = false;
+    state.csrfToken = null;
+  }
+}
+
+function clearClientAuth() { state.authenticated = false; state.csrfToken = null; }
+
 async function loadDashboard() {
   clearAlert();
+  await restoreSession();
   try {
     const [health, llm, incidentsResponse] = await Promise.all([
       api('/api/health').catch((error) => ({ error: error.message })),
       api('/api/llm/status').catch((error) => ({ error: error.message })),
       api('/api/incidents'),
+      loadInvestigationHistory({ reset: true }),
     ]);
     state.apiHealth = health;
     state.llmStatus = llm;
@@ -61,11 +85,46 @@ async function loadDashboard() {
   }
 }
 
+async function loadInvestigationHistory(options = {}) {
+  const reset = Boolean(options.reset);
+  state.historyLoading = true;
+  state.historyError = null;
+  try {
+    const cursor = reset ? null : state.historyNextCursor;
+    const query = cursor ? '?pageSize=10&cursor=' + encodeURIComponent(cursor) : '?pageSize=10';
+    const page = await api('/api/investigations' + query);
+    state.investigationHistory = reset ? (page.items ?? []) : state.investigationHistory.concat(page.items ?? []);
+    state.historyNextCursor = page.nextCursor ?? null;
+  } catch (error) {
+    state.historyError = error instanceof Error ? error.message : 'Failed to load investigation history.';
+    if (reset) state.investigationHistory = [];
+  } finally {
+    state.historyLoading = false;
+  }
+}
+
+async function ensureAuthenticated() {
+  if (state.authenticated && state.csrfToken) return true;
+  const accessCode = window.prompt('Enter portfolio access code to run protected demo actions.');
+  if (!accessCode) { clearClientAuth(); return false; }
+  try {
+    const session = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ accessCode }) });
+    state.authenticated = Boolean(session.authenticated);
+    state.csrfToken = session.csrfToken ?? null;
+    return state.authenticated;
+  } catch {
+    clearClientAuth();
+    showAlert('Authentication is required to run protected demo actions.');
+    return false;
+  }
+}
+
 async function runInvestigation() {
   if (!state.selectedIncidentId) {
     showAlert('No incident is available to investigate. Seed telemetry first.');
     return;
   }
+  if (!(await ensureAuthenticated())) { showAlert('Authentication is required to run an investigation.'); return; }
   const button = $('runInvestigationButton');
   button.disabled = true;
   button.textContent = 'Running…';
@@ -73,10 +132,13 @@ async function runInvestigation() {
   try {
     const result = await api('/api/incidents/' + encodeURIComponent(state.selectedIncidentId) + '/investigations', { method: 'POST', body: '{}' });
     await loadInvestigation(result.investigationId);
+    await loadInvestigationHistory({ reset: true });
+    renderAll();
     history.replaceState(null, '', '?investigationId=' + encodeURIComponent(result.investigationId) + '#investigation');
     renderNavigation();
   } catch (error) {
-    showAlert(error instanceof Error ? error.message : 'Investigation failed.');
+    if (error && (error.status === 401 || error.status === 403)) { clearClientAuth(); showAlert('Authentication is required to run protected demo actions.'); }
+    else showAlert(error instanceof Error ? error.message : 'Investigation failed.');
   } finally {
     button.disabled = false;
     button.textContent = 'Run investigation';
@@ -102,15 +164,16 @@ function statusPill(value) {
 function renderStatus() {
   const health = state.apiHealth ?? {};
   const llm = state.llmStatus ?? {};
-  const dbStatus = health.database ?? health.db ?? (health.error ? 'unavailable' : 'connected');
+  const deps = health.dependencies ?? {};
+  const dbStatus = deps.database?.state ?? (health.error ? 'unknown' : 'unknown');
   const langfuseStatus = state.currentInvestigation?.langfuseTraceId ? 'traced' : 'optional';
   $('systemStatus').innerHTML = [
-    ['API', health.status ?? (health.error ? 'unavailable' : 'ready')],
-    ['Database', dbStatus],
-    ['Provider', llm.provider ?? '—'],
-    ['Model', llm.model ?? '—'],
-    ['Langfuse', langfuseStatus],
-  ].map(([label, value]) => '<div class="status-item"><span>' + escapeHtml(label) + '</span><span>' + escapeHtml(value) + '</span></div>').join('');
+    ['api', 'API', health.status ?? (health.error ? 'unknown' : 'unknown')],
+    ['database', 'Database', dbStatus],
+    ['provider', 'Provider', llm.provider ?? '—'],
+    ['model', 'Model', llm.model ?? '—'],
+    ['langfuse', 'Langfuse', langfuseStatus],
+  ].map(([key, label, value]) => '<div class="status-item" data-health-dependency="' + escapeHtml(key) + '"><span>' + escapeHtml(label) + '</span><span data-health-state="' + escapeHtml(key) + '">' + escapeHtml(value) + '</span></div>').join('');
 }
 
 function renderMetrics() {
@@ -118,12 +181,12 @@ function renderMetrics() {
   const incidents = state.incidents;
   const toolCalls = investigation?.toolCalls ?? [];
   const cards = [
-    ['System status', state.apiHealth?.error ? 'Degraded' : 'Ready', 'API and database read path'],
+    ['System status', state.apiHealth?.status ?? 'unknown', 'API health contract'],
     ['Investigations', investigation ? '1 loaded' : '0 loaded', investigation?.status ?? 'Run or select an investigation'],
     ['Incidents', String(incidents.length), incidents[0]?.serviceName ?? 'No incident loaded'],
     ['Provider / model', (state.llmStatus?.provider ?? investigation?.provider ?? '—') + ' / ' + (state.llmStatus?.model ?? investigation?.model ?? '—'), 'Provider abstraction preserved'],
     ['Langfuse status', investigation?.langfuseTraceId ? 'Trace linked' : 'Optional', investigation?.langfuseTraceId ?? 'Disabled or not yet traced'],
-    ['Database status', state.apiHealth?.error ? 'Unavailable' : 'Connected', 'Existing API health endpoint'],
+    ['Database status', state.apiHealth?.dependencies?.database?.state ?? 'unknown', 'Typed health endpoint'],
     ['Tool calls', String(toolCalls.length), 'Workflow observations'],
     ['Confidence', percent(investigation?.confidence), 'Structured report score'],
   ];
@@ -180,6 +243,37 @@ function renderInvestigation() {
     '<article class="detail-card"><span class="detail-label">Confidence</span><div class="confidence-ring" style="--confidence:' + confidence + '%"><span>' + confidence + '%</span></div></article>' +
     '<article class="detail-card full"><span class="detail-label">LLM reasoning</span><h4>Structured investigation report</h4><p>' + escapeHtml(report?.summary ?? inv.summary ?? '—') + '</p>' + (finalStep ? monoJson(JSON.parse(finalStep.content)) : '') + '</article>' +
     '<article class="detail-card full"><span class="detail-label">Prompt context</span><h4>Prompt version ' + escapeHtml(inv.promptVersion) + '</h4><p>Provider ' + escapeHtml(inv.provider) + ' · Model ' + escapeHtml(inv.model) + '</p>' + (promptStep ? '<pre>' + escapeHtml(promptStep.content.slice(0, 1400)) + '</pre>' : '') + '</article>';
+}
+
+function renderHistory() {
+  const button = $('loadMoreHistoryButton');
+  button.disabled = state.historyLoading || !state.historyNextCursor;
+  button.textContent = state.historyLoading ? 'Loading…' : state.historyNextCursor ? 'Load more' : 'All loaded';
+  if (state.historyLoading && state.investigationHistory.length === 0) {
+    $('historyPanel').innerHTML = '<div class="empty-state">Loading investigation history…</div>';
+    return;
+  }
+  if (state.historyError) {
+    $('historyPanel').innerHTML = '<div class="empty-state">Unable to load investigation history: ' + escapeHtml(state.historyError) + '</div>';
+    return;
+  }
+  if (state.investigationHistory.length === 0) {
+    $('historyPanel').innerHTML = '<div class="empty-state">No persisted investigations yet.</div>';
+    return;
+  }
+  $('historyPanel').innerHTML = state.investigationHistory.map((item) =>
+    '<article class="history-item" data-investigation-history-id="' + escapeHtml(item.investigationId) + '">' +
+    '<div><p class="timeline-title">' + escapeHtml(item.summary ?? item.probableRootCause ?? 'Investigation ' + item.status) + '</p>' +
+    '<div class="timeline-meta">' + escapeHtml(formatDate(item.createdAt)) + ' · incident ' + escapeHtml(item.incidentId) + '</div></div>' +
+    statusPill(item.status) + '<span class="badge muted">' + escapeHtml(percent(item.confidence)) + '</span></article>'
+  ).join('');
+  document.querySelectorAll('[data-investigation-history-id]').forEach((row) => row.addEventListener('click', async () => {
+    const id = row.getAttribute('data-investigation-history-id');
+    if (!id) return;
+    await loadInvestigation(id);
+    history.replaceState(null, '', '?investigationId=' + encodeURIComponent(id) + '#investigation');
+    renderNavigation();
+  }));
 }
 
 function renderTimeline() {
@@ -244,6 +338,7 @@ function renderAll() {
   renderMetrics();
   renderIncidentRows();
   renderInvestigation();
+  renderHistory();
   renderTimeline();
   renderEvidence();
   renderLangfuse();
@@ -252,6 +347,7 @@ function renderAll() {
 
 $('refreshButton').addEventListener('click', loadDashboard);
 $('runInvestigationButton').addEventListener('click', runInvestigation);
+$('loadMoreHistoryButton').addEventListener('click', async () => { await loadInvestigationHistory(); renderHistory(); });
 $('searchInput').addEventListener('input', (event) => { state.search = event.target.value; renderIncidentRows(); });
 $('severityFilter').addEventListener('change', (event) => { state.severity = event.target.value; renderIncidentRows(); });
 window.addEventListener('hashchange', renderNavigation);

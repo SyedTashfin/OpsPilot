@@ -1,10 +1,6 @@
 import { createPool, resetDatabase, runMigrations } from "../../packages/database/src/index.js";
 
 async function main(): Promise<void> {
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Refusing to reset database when NODE_ENV=production.");
-  }
-
   const pool = createPool();
 
   try {

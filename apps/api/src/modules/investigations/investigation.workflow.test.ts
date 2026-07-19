@@ -20,13 +20,13 @@ const incident: IncidentContext = {
   startedAt: "2026-06-26T09:47:00.000Z",
   detectionReason:
     "recommendation-service p95 latency exceeded 1200ms and feature-store timeout errors increased after deployment rec-2026.06.1.",
-  suspectedRootCause: null,
   metadata: { scenarioId: "beautycorp-rec-latency-2026-06-26" },
 };
 
 class FakeInvestigationRepository {
   readonly toolNames: string[] = [];
-  readonly steps: string[] = [];
+  readonly toolOutputs: unknown[] = [];
+  readonly steps: { title: string; content: string }[] = [];
   completedReport: unknown;
   langfuseTraceId: string | undefined;
   invalidModelResponse: { rawResponse: string; parserError: string } | undefined;
@@ -76,13 +76,14 @@ class FakeInvestigationRepository {
     ]);
   }
 
-  recordToolCall(input: { readonly toolName: string }): Promise<void> {
+  recordToolCall(input: { readonly toolName: string; readonly output: unknown }): Promise<void> {
     this.toolNames.push(input.toolName);
+    this.toolOutputs.push(input.output);
     return Promise.resolve();
   }
 
-  recordStep(input: { readonly title: string }): Promise<void> {
-    this.steps.push(input.title);
+  recordStep(input: { readonly title: string; readonly content: string }): Promise<void> {
+    this.steps.push({ title: input.title, content: input.content });
     return Promise.resolve();
   }
 
@@ -115,7 +116,7 @@ class FakeRunbooks implements RunbookSearchService {
         slug: "recommendation-service-latency",
         chunkIndex: 0,
         content:
-          "Symptoms: p95 latency above 1200ms, feature-store timeout errors, elevated retry count. Common root cause: deployment changes timeout budget or retry behavior.",
+          "Symptoms: p95 latency above 1200ms, feature-store timeout errors, elevated retry count. Diagnostic guidance: inspect timeout and retry configuration diffs, then correlate retry counts with feature-store timeout logs.",
         score: 0.91,
         metadata: {},
       },
@@ -170,7 +171,7 @@ class FakeLLM implements LLMClient {
           },
           {
             source: "log",
-            reference: "log-1",
+            reference: "feature_store_timeout retry_count log-1",
             detail: "Log reports feature_store_timeout and retry_count=3.",
           },
         ],

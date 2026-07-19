@@ -25,7 +25,7 @@ describe("@opspilot/web", () => {
     });
   });
 
-  it("renders the production dashboard shell", () => {
+  it("renders the production dashboard shell without server secrets", () => {
     const html = createDashboardHtml({
       apiBaseUrl: "http://api.local",
       langfuseBaseUrl: "http://langfuse.local",
@@ -37,6 +37,12 @@ describe("@opspilot/web", () => {
     expect(html).toContain("Evidence panel");
     expect(html).toContain("Langfuse integration");
     expect(html).toContain('"apiBaseUrl":"http://api.local"');
+    expect(html).not.toMatch(
+      /accessCode|sessionSecret|OPSPILOT_PORTFOLIO_ACCESS_CODE|OPSPILOT_SESSION_SECRET/i,
+    );
+    expect(clientScript).not.toMatch(
+      /OPSPILOT_PORTFOLIO_ACCESS_CODE|OPSPILOT_SESSION_SECRET|demo-code|session-secret/i,
+    );
   });
 
   it("serves static dashboard assets with key UI hooks", () => {
@@ -46,5 +52,15 @@ describe("@opspilot/web", () => {
     expect(clientScript).toContain("/api/llm/status");
     expect(clientScript).toContain("investigationId");
     expect(clientScript).toContain("Open in Langfuse");
+    expect(clientScript).toContain("/api/auth/session");
+    expect(clientScript).toContain("clearClientAuth");
+    expect(clientScript).toContain("Authentication is required");
+    expect(clientScript).toContain("loadInvestigationHistory");
+    expect(clientScript).toContain("Loading investigation history");
+    expect(clientScript).toContain("No persisted investigations yet");
+    expect(clientScript).toContain("Unable to load investigation history");
+    expect(clientScript).toContain("data-investigation-history-id");
+    expect(clientScript).toContain("?investigationId=");
+    expect(clientScript).toContain("await loadInvestigationHistory({ reset: true })");
   });
 });

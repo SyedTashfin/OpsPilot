@@ -9,3 +9,7 @@ coverage/
 .DS_Store
 *.log
 opspilot.db
+# Playwright artifacts
+/test-results/
+/playwright-report/
+/blob-report/
