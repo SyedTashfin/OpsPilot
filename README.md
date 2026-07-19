@@ -1,10 +1,12 @@
 # OpsPilot
 
-OpsPilot is a local-first AI operations copilot that investigates a synthetic production incident end-to-end: telemetry is generated, an incident is detected, runbooks are retrieved with RAG, a single LLM call produces a structured root-cause report, and the investigation is visualized in a dark engineering dashboard with optional Langfuse tracing.
+[![quality](https://github.com/SyedTashfin/OpsPilot/actions/workflows/quality.yml/badge.svg)](https://github.com/SyedTashfin/OpsPilot/actions/workflows/quality.yml)
 
-The project is intentionally narrow and production-shaped. It is built to demonstrate AI engineering, observability, deterministic workflow design, provider abstraction, and release-quality local infrastructure without pretending to be a full enterprise incident platform.
+OpsPilot is the canonical product in `SyedTashfin/OpsPilot`: a local-first, user-triggered, AI-assisted demonstration that investigates a synthetic incident end-to-end. Telemetry is generated, an incident is detected, runbooks are retrieved with RAG, one bounded model call produces a structured report, and the result is visualized in a lightweight Node-served TypeScript/HTML/CSS dashboard with optional Langfuse tracing.
 
-![OpsPilot dashboard overview](docs/assets/screenshots/issue-010-dashboard/01-overview-page.png)
+The project is intentionally narrow and production-shaped, but it is not autonomous monitoring/remediation and is not a production SaaS. There is no public cloud deployment yet. `SyedTashfin/opspilot-agentic-operations` remains a separate deployment/SSL prototype; it is intentionally not merged into this repository, and SSL porting is deferred.
+
+![OpsPilot dashboard overview: local repository evidence, not a live deployment](docs/assets/screenshots/issue-010-dashboard/01-overview-page.png)
 
 ## Why this exists
 
@@ -24,11 +26,11 @@ The fictional company is **BeautyCorp**. V1 focuses on one realistic incident: a
 - **AI investigation workflow**: application-owned tool sequence, one structured LLM generation, persisted report.
 - **Observability**: optional Langfuse trace per investigation with tool and generation observations.
 - **RAG**: pgvector-backed runbook ingestion and retrieval.
-- **Provider abstraction**: Ollama by default, Gemini optional, deterministic fake LLM for smoke tests.
+- **Provider abstraction**: Ollama by default, Gemini optional, deterministic fake LLM only for smoke/E2E test boundaries.
 - **Platform engineering**: Fastify API, PostgreSQL/pgvector, Docker Compose, typed TypeScript monorepo.
-- **Dashboard**: production-style dark UI for incidents, evidence, tool timeline, root cause, confidence, and trace links.
+- **Dashboard**: lightweight Node-served TypeScript/HTML/CSS UI for incidents, evidence, tool timeline, root cause, confidence, health, history, and trace links.
 
-Explicitly out of V1 scope: evaluation, prompt management, Kubernetes, Terraform, cloud deployment, multi-tenancy, RBAC, automatic remediation, multi-agent planning, and enterprise integrations.
+Explicitly out of current scope: production cloud deployment, SSL porting, prompt management UI, Kubernetes, Terraform, multi-tenancy, enterprise RBAC, automatic remediation, multi-agent planning, and production integrations.
 
 ## Architecture
 
@@ -72,6 +74,8 @@ sequenceDiagram
 See [`docs/architecture/README.md`](docs/architecture/README.md) for the complete Mermaid diagram set.
 
 ## Screenshots
+
+These screenshots are local/repository evidence captured from the demo UI, not a public live deployment.
 
 | Overview                                                                      | Incident detail                                                                        |
 | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -132,12 +136,14 @@ pnpm docker:down
 
 ## Run the V1 demo
 
-The demo resets the local database, runs migrations, seeds BeautyCorp, ingests runbooks, generates deterministic telemetry, detects the incident, runs an investigation, and prints the report.
+The demo resets the local database, runs migrations, seeds BeautyCorp, ingests runbooks, generates deterministic telemetry, detects the incident, runs an investigation, and prints the report. Because it performs a destructive database reset, the command must include `NODE_ENV=development` and `OPSPILOT_ALLOW_DATABASE_RESET=local-dev-or-test` with a local OpsPilot database URL.
 
 Fast deterministic smoke path:
 
 ```bash
 OLLAMA_PORT=11435 pnpm docker:up
+NODE_ENV=development \
+OPSPILOT_ALLOW_DATABASE_RESET=local-dev-or-test \
 DATABASE_URL=postgres://opspilot:opspilot@localhost:5432/opspilot \
 RAG_EMBEDDING_PROVIDER=deterministic \
 OPSPILOT_DEMO_FAKE_LLM=true \
@@ -148,6 +154,8 @@ Production-like local path through Ollama:
 
 ```bash
 ollama pull qwen2.5:7b-instruct
+NODE_ENV=development \
+OPSPILOT_ALLOW_DATABASE_RESET=local-dev-or-test \
 DATABASE_URL=postgres://opspilot:opspilot@localhost:5432/opspilot \
 OLLAMA_BASE_URL=http://localhost:11434 \
 pnpm demo:investigation
@@ -197,13 +205,14 @@ The dashboard links to Langfuse by trace ID. It does not embed Langfuse.
 
 ## API surface
 
-Core V1 endpoints:
+Core endpoints. Public read-only routes remain readable; state-changing routes require the portfolio auth/session/CSRF/origin/content-type boundary documented in `docs/AUTHENTICATION_AND_CORS.md`.
 
 ```text
 GET  /api/health
 GET  /api/llm/status
 GET  /api/incidents
 POST /api/incidents/:incidentId/investigations
+GET  /api/investigations?pageSize=10
 GET  /api/investigations/:investigationId
 GET  /api/investigations/:investigationId/report
 GET  /api/runbooks/search?q=feature%20store%20timeout&limit=5
@@ -254,43 +263,47 @@ Most local defaults are in `.env.example`. Important variables:
 | `LANGFUSE_ENABLED`                            | Enable/disable optional tracing                  |
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Langfuse credentials                             |
 | `WEB_PUBLIC_API_URL`                          | Dashboard API URL                                |
+| `API_ALLOWED_ORIGINS`                         | Explicit browser origins allowed by API CORS     |
+| `OPSPILOT_AUTH_REQUIRED`                      | Enable/disable portfolio demo auth boundary      |
+| `OPSPILOT_PORTFOLIO_ACCESS_CODE`              | Server-side access code for protected mutations  |
+| `OPSPILOT_SESSION_SECRET`                     | Server-side signed session secret                |
 
 `.env.example` contains local development secrets for self-hosted Langfuse only. Replace them before any non-local use.
 
 ## Quality gates
 
-Release verification uses:
+Local and CI verification use:
 
 ```bash
+pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
-pnpm format:check
-pnpm docker:config
-pnpm docker:build
+pnpm docs:check
+pnpm security:scan
 ```
 
-Additional RC smoke checks run:
+Additional gated checks:
 
-- Compose startup
-- deterministic investigation demo
-- Langfuse trace API verification
-- dashboard browser smoke via Playwright
+- `pnpm test:db` with PostgreSQL+pgvector and `OPSPILOT_RUN_DB_TESTS=true`; CI runs this against an isolated `pgvector/pgvector:pg16` service.
+- `pnpm test:e2e` with Playwright browsers installed; CI starts the real API/web processes against isolated PostgreSQL+pgvector and uses deterministic test-only LLM injection.
+- `pnpm audit --audit-level=high --prod` where the npm audit endpoint is reachable.
 
 ## Known limitations
 
 - Synthetic data only; no production integrations.
 - One deterministic investigation path; no planner or multi-agent loop.
-- No evaluation suite in V1.
+- Evaluation exists only as deterministic test fixtures/harnesses outside production build boundaries.
 - No prompt management UI.
-- No authentication, RBAC, tenancy, audit log, or user management.
-- Docker Compose local deployment only; no Kubernetes/cloud deployment.
-- Local Langfuse credentials are development defaults.
+- Portfolio-demo authentication exists for mutations; no enterprise RBAC, tenancy, audit log, or user management.
+- Docker Compose local deployment only; no Kubernetes/cloud deployment and no public cloud deployment yet.
+- Local Langfuse credentials are development defaults/placeholders.
+- CodeQL, secret scanning, push protection, Dependabot alerts, branch protection, and deployment environments require human repository-owner configuration where the plan supports them.
 
 ## Roadmap
 
-- **V2 production hardening**: CI workflows, auth-light, release automation, operational docs, richer smoke tests.
+- **Post-Milestone hardening**: repository settings enforcement, public/paid-plan security features where available, release automation, operational docs, richer smoke tests.
 - **Evaluation**: golden incidents, regression scoring, answer quality checks, trace-linked evaluation reports.
 - **Prompt management**: versioned prompts, prompt review workflow, model comparison.
 - **Integrations**: real log/metric sources, issue tracker hooks, Slack/PagerDuty-style surfaces.
