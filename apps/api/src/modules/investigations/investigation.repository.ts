@@ -1,4 +1,11 @@
+import { Buffer } from "node:buffer";
 import type pg from "pg";
+import {
+  investigationHistoryResponseSchema,
+  type InvestigationHistoryItem,
+  type InvestigationHistoryResponse,
+  type InvestigationStatus,
+} from "@opspilot/contracts";
 import {
   InvestigationReportSchema,
   type DeploymentContext,
@@ -7,6 +14,53 @@ import {
   type InvestigationReport,
   type MetricSummary,
 } from "./investigation.types.js";
+
+export type InvestigationHistoryPageInput = {
+  readonly pageSize: number;
+  readonly cursor?: string | undefined;
+  readonly incidentId?: string | undefined;
+  readonly status?: InvestigationStatus | undefined;
+};
+
+type HistoryCursor = {
+  readonly createdAt: string;
+  readonly investigationId: string;
+};
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const cursorTimestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/u;
+
+function assertUuid(value: string): void {
+  if (!uuidPattern.test(value)) throw new Error("Malformed investigation history cursor.");
+}
+
+function isHistoryCursor(value: unknown): value is HistoryCursor {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Object.keys(value).sort();
+  if (keys.length !== 2 || keys[0] !== "createdAt" || keys[1] !== "investigationId") return false;
+  const candidate = value as Partial<HistoryCursor>;
+  return (
+    typeof candidate.createdAt === "string" &&
+    cursorTimestampPattern.test(candidate.createdAt) &&
+    typeof candidate.investigationId === "string" &&
+    uuidPattern.test(candidate.investigationId)
+  );
+}
+
+function encodeHistoryCursor(cursor: HistoryCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+export function decodeHistoryCursor(cursor: string): HistoryCursor {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+  } catch {
+    throw new Error("Malformed investigation history cursor.");
+  }
+  if (!isHistoryCursor(parsed)) throw new Error("Malformed investigation history cursor.");
+  return parsed;
+}
 
 export class InvestigationRepository {
   constructor(private readonly pool: pg.Pool) {}
@@ -22,7 +76,6 @@ export class InvestigationRepository {
       detectedAt: string;
       startedAt: string;
       detectionReason: string;
-      suspectedRootCause: string | null;
       metadata: Record<string, unknown>;
     }>(
       `SELECT i.id,
@@ -34,7 +87,6 @@ export class InvestigationRepository {
               i.detected_at AS "detectedAt",
               i.started_at AS "startedAt",
               i.detection_reason AS "detectionReason",
-              i.suspected_root_cause AS "suspectedRootCause",
               i.metadata
        FROM incidents i
        JOIN beautycorp_services s ON s.id = i.service_id
@@ -121,6 +173,82 @@ export class InvestigationRepository {
       [incident.serviceId, incident.detectedAt],
     );
     return result.rows;
+  }
+
+  async listInvestigationHistory(
+    input: InvestigationHistoryPageInput,
+  ): Promise<InvestigationHistoryResponse> {
+    const cursor = input.cursor ? decodeHistoryCursor(input.cursor) : null;
+    const values: unknown[] = [];
+    const filters: string[] = [];
+    if (cursor) {
+      values.push(cursor.createdAt, cursor.investigationId);
+      filters.push(
+        `(inv.created_at, inv.id) < ($${values.length - 1}::timestamptz, $${values.length}::uuid)`,
+      );
+    }
+    if (input.incidentId) {
+      assertUuid(input.incidentId);
+      values.push(input.incidentId);
+      filters.push(`inv.incident_id = $${values.length}::uuid`);
+    }
+    if (input.status) {
+      values.push(input.status);
+      filters.push(`inv.status = $${values.length}`);
+    }
+    values.push(input.pageSize + 1);
+    const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+    const result = await this.pool.query<{
+      investigationId: string;
+      incidentId: string;
+      status: InvestigationStatus;
+      createdAt: string;
+      completedAt: string | null;
+      summary: string | null;
+      probableRootCause: string | null;
+      confidence: number | string | null;
+      cursorCreatedAt: string;
+    }>(
+      `SELECT inv.id AS "investigationId",
+              inv.incident_id AS "incidentId",
+              inv.status,
+              inv.created_at AS "createdAt",
+              to_char(inv.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "cursorCreatedAt",
+              inv.completed_at AS "completedAt",
+              inv.summary,
+              inv.probable_root_cause AS "probableRootCause",
+              inv.confidence_score::float AS confidence
+       FROM investigations inv
+       ${where}
+       ORDER BY inv.created_at DESC, inv.id DESC
+       LIMIT $${values.length};`,
+      values,
+    );
+    const pageRows = result.rows.slice(0, input.pageSize);
+    const items: InvestigationHistoryItem[] = pageRows.map((row) => ({
+      investigationId: row.investigationId,
+      incidentId: row.incidentId,
+      status: row.status,
+      createdAt: new Date(row.createdAt).toISOString(),
+      completedAt: row.completedAt ? new Date(row.completedAt).toISOString() : null,
+      summary: row.summary,
+      probableRootCause: row.probableRootCause,
+      confidence: row.confidence === null ? null : Number(row.confidence),
+      detailHref: `?investigationId=${encodeURIComponent(row.investigationId)}#investigation`,
+    }));
+    const last = pageRows.at(-1);
+    const nextCursor =
+      result.rows.length > input.pageSize && last
+        ? encodeHistoryCursor({
+            createdAt: last.cursorCreatedAt,
+            investigationId: last.investigationId,
+          })
+        : null;
+    return investigationHistoryResponseSchema.parse({
+      items,
+      pageSize: input.pageSize,
+      nextCursor,
+    });
   }
 
   async getInvestigationDetail(investigationId: string): Promise<Record<string, unknown> | null> {

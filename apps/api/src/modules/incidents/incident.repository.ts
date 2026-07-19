@@ -7,7 +7,7 @@ export class IncidentRepository {
   async list(): Promise<Record<string, unknown>[]> {
     const result = await this.pool.query(
       `SELECT i.id, s.name AS "serviceName", i.title, i.severity, i.status, i.detected_at AS "detectedAt",
-              i.started_at AS "startedAt", i.detection_reason AS "detectionReason", i.suspected_root_cause AS "suspectedRootCause", i.metadata
+              i.started_at AS "startedAt", i.detection_reason AS "detectionReason", i.metadata
        FROM incidents i
        JOIN beautycorp_services s ON s.id = i.service_id
        ORDER BY i.detected_at DESC;`,
@@ -18,7 +18,7 @@ export class IncidentRepository {
   async findById(id: string): Promise<Record<string, unknown> | null> {
     const result = await this.pool.query(
       `SELECT i.id, s.name AS "serviceName", i.title, i.severity, i.status, i.detected_at AS "detectedAt",
-              i.started_at AS "startedAt", i.detection_reason AS "detectionReason", i.suspected_root_cause AS "suspectedRootCause", i.metadata
+              i.started_at AS "startedAt", i.detection_reason AS "detectionReason", i.metadata
        FROM incidents i
        JOIN beautycorp_services s ON s.id = i.service_id
        WHERE i.id = $1
@@ -37,8 +37,8 @@ export class IncidentRepository {
 
     const result = await this.pool.query<{ id: string }>(
       `WITH service AS (SELECT id FROM beautycorp_services WHERE name = $1)
-       INSERT INTO incidents (service_id, title, severity, status, detected_at, started_at, detection_reason, suspected_root_cause, metadata)
-       SELECT id, $2, $3, 'detected', $4, $5, $6, $7, $8::jsonb FROM service
+       INSERT INTO incidents (service_id, title, severity, status, detected_at, started_at, detection_reason, metadata)
+       SELECT id, $2, $3, 'detected', $4, $5, $6, $7::jsonb FROM service
        RETURNING id;`,
       [
         scenario.serviceName,
@@ -47,7 +47,6 @@ export class IncidentRepository {
         scenario.detectedAt,
         scenario.startedAt,
         scenario.detectionReason,
-        scenario.suspectedRootCause,
         JSON.stringify({
           scenarioId: scenario.id,
           affectedSignals: scenario.affectedSignals,
@@ -90,8 +89,6 @@ export class IncidentRepository {
       detectedAt: "2026-06-26T09:58:00.000Z",
       detectionReason:
         "recommendation-service p95 latency exceeded 1200ms and feature-store timeout errors increased after deployment rec-2026.06.1.",
-      suspectedRootCause:
-        "Deployment rec-2026.06.1 changed feature-store timeout and retry behavior, causing retry amplification and elevated p95 latency.",
       affectedSignals: [
         "p95_latency_ms",
         "http_error_rate",

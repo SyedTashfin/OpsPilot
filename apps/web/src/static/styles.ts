@@ -135,7 +135,7 @@ tr[data-incident-id]:hover, tr.selected { background: rgba(113,112,255,.08); }
 .root-cause { font-size: 18px; }
 .confidence-ring { width: 132px; height: 132px; border-radius: 999px; display: grid; place-items: center; background: conic-gradient(var(--green) var(--confidence), rgba(255,255,255,.08) 0); margin: 8px auto 0; }
 .confidence-ring span { width: 104px; height: 104px; border-radius: inherit; display: grid; place-items: center; background: #101112; font-size: 24px; font-weight: 590; }
-.timeline-list { display: grid; gap: 12px; position: relative; }
+.timeline-list, .history-list { display: grid; gap: 12px; position: relative; }
 .timeline-item { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 14px; border: 1px solid var(--border-soft); border-radius: 14px; background: rgba(255,255,255,.03); }
 .timeline-index { width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; background: rgba(113,112,255,.18); color: #c7d2fe; font-family: var(--mono); font-size: 12px; }
 .timeline-title { margin: 0; font-weight: 590; }
@@ -148,6 +148,8 @@ details summary::-webkit-details-marker { display: none; }
 pre { overflow: auto; max-width: 100%; margin: 10px 0 0; color: #c7d2fe; background: rgba(0,0,0,.26); border: 1px solid var(--border-soft); border-radius: 10px; padding: 12px; font: 12px/1.5 var(--mono); }
 .langfuse-panel-inner { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .langfuse-action { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 14px; padding-top: 12px; border-top: 1px solid var(--border-soft); }
+.history-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 14px; border: 1px solid var(--border-soft); border-radius: 14px; background: rgba(255,255,255,.03); cursor: pointer; }
+.history-item:hover { background: rgba(113,112,255,.08); }
 a.button { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
 .empty-state { color: var(--muted); border: 1px dashed var(--border); border-radius: 14px; padding: 18px; }
 @media (max-width: 1180px) {

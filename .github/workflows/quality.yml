@@ -1,0 +1,120 @@
+name: quality
+
+on:
+  pull_request:
+  push:
+    branches: [main, feature/milestone-0-safety-hardening]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspace:
+    name: workspace quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: corepack enable && corepack prepare pnpm@9.15.5 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm docs:check
+      - run: pnpm security:scan
+      - run: pnpm audit --audit-level=high --prod
+
+  postgres-pgvector:
+    name: postgres pgvector integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: opspilot
+          POSTGRES_PASSWORD: opspilot
+          POSTGRES_DB: opspilot_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U opspilot -d opspilot_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      CI: "true"
+      NODE_ENV: test
+      OPSPILOT_ALLOW_DATABASE_RESET: local-dev-or-test
+      OPSPILOT_RUN_DB_TESTS: "true"
+      OPSPILOT_TEST_DATABASE_URL: postgres://opspilot:opspilot@localhost:5432/opspilot_test
+      DATABASE_URL: postgres://opspilot:opspilot@localhost:5432/opspilot_test
+      RAG_EMBEDDING_PROVIDER: deterministic
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: corepack enable && corepack prepare pnpm@9.15.5 --activate
+      - run: pnpm install --frozen-lockfile
+      - name: Run DB integration tests and fail on essential skips
+        run: |
+          set -o pipefail
+          pnpm test:db 2>&1 | tee db-tests.log
+          ! grep -i "skipped" db-tests.log
+          grep -F "Tests  6 passed" db-tests.log
+          grep -F "Tests  1 passed" db-tests.log
+
+  e2e:
+    name: playwright e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [workspace, postgres-pgvector]
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: opspilot
+          POSTGRES_PASSWORD: opspilot
+          POSTGRES_DB: opspilot_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U opspilot -d opspilot_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      CI: "true"
+      NODE_ENV: test
+      OPSPILOT_ALLOW_DATABASE_RESET: local-dev-or-test
+      OPSPILOT_TEST_DATABASE_URL: postgres://opspilot:opspilot@localhost:5432/opspilot_test
+      RAG_EMBEDDING_PROVIDER: deterministic
+      E2E_API_PORT: 4300
+      E2E_WEB_PORT: 3300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: corepack enable && corepack prepare pnpm@9.15.5 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-artifacts
+          path: |
+            test-results/playwright
+            playwright-report

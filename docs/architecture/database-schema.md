@@ -54,3 +54,13 @@ The recommendation service seed includes the initial latency incident context: d
 ## Embedding dimension
 
 `runbook_chunks.embedding` is `vector(768)`. The ingestion path validates embedding dimensions before insert and fails if the configured embedding model returns a different dimension.
+
+## Investigation history API
+
+`GET /api/investigations` returns a bounded public read-only history page from persisted `investigations` rows only. Items include IDs, status, timestamps, safe persisted summary/root-cause fields, confidence, and a stable dashboard deep link. The endpoint does not return prompts, tool-call payloads, hidden evaluation ground truth, raw model responses, credentials, or trace payload internals.
+
+History is ordered by `created_at DESC, id DESC` and uses an opaque cursor containing that tie-breaker. Page size defaults to 10 and is capped at 50; malformed cursors are rejected with the standard API error envelope.
+
+## pgvector exact-search indexes
+
+V1 retrieval uses exact cosine distance over the small runbook corpus. Historical migrations remain immutable, but forward migrations remove the unused HNSW and IVFFlat ANN indexes while preserving `runbook_chunks.embedding`, documents, and retrieval behavior. The migration runner is forward-only; rollback requires a new migration that recreates an ANN index after validating it is needed.
