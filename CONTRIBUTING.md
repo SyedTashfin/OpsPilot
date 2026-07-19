@@ -1,60 +1,41 @@
 # Contributing to OpsPilot
 
-OpsPilot v1.0.0 is a focused portfolio-grade AI operations copilot. Contributions should preserve the V1 engineering boundaries unless a maintainer explicitly approves new product scope.
+OpsPilot is developed in SyedTashfin/OpsPilot. Keep changes focused and reviewable.
 
-## Local setup
+## Local workflow
 
 ```bash
 pnpm install
-cp .env.example .env
-pnpm docker:up
-```
-
-Run quality gates before opening a pull request:
-
-```bash
+pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
-pnpm format:check
-pnpm docker:config
-pnpm docker:build
+pnpm docs:check
+pnpm security:scan
 ```
 
-## Scope discipline
+DB-backed tests require a local PostgreSQL+pgvector database and explicit safe reset signals; otherwise they remain gated for CI.
 
-Do not mix unrelated changes. Keep PRs aligned to one concern:
+```bash
+NODE_ENV=test \
+CI=true \
+OPSPILOT_ALLOW_DATABASE_RESET=local-dev-or-test \
+OPSPILOT_RUN_DB_TESTS=true \
+DATABASE_URL=postgres://opspilot:opspilot@localhost:5432/opspilot_test \
+pnpm test:db
+```
 
-- bug fix
-- documentation correction
-- release engineering
-- focused implementation issue
+Playwright E2E requires installed Playwright browsers and a local/CI PostgreSQL+pgvector database:
 
-For V1 maintenance, avoid adding:
+```bash
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
 
-- evaluation features
-- prompt management
-- Kubernetes/cloud deployment
-- additional backend services
-- autonomous remediation
-- multi-agent planning
+## Boundaries
 
-These belong in future roadmap issues.
-
-## Architecture boundaries
-
-- Investigation workflow remains deterministic and app-owned.
-- LLM provider-specific code belongs in `packages/llm`.
-- Langfuse integration belongs behind `packages/telemetry` observer boundaries.
-- RAG retrieval belongs in `packages/rag`.
-- Dashboard consumes existing API read models; it should not duplicate business logic.
-
-## Pull request checklist
-
-- [ ] Code or docs are scoped to one concern.
-- [ ] Lint, typecheck, tests, build pass.
-- [ ] Docker config/build still pass if infrastructure is touched.
-- [ ] Docs are updated for user-visible behavior.
-- [ ] No secrets or generated artifacts are committed.
-- [ ] Screenshots are updated for dashboard UI changes.
+- Do not modify Repository B (`SyedTashfin/opspilot-agentic-operations`) as part of OpsPilot changes.
+- Do not port SSL functionality in Milestone 0.
+- Do not deploy, access production resources, use production credentials, or make paid model calls from routine tests.
+- Do not edit historical checksum-tracked migrations; add forward migrations.

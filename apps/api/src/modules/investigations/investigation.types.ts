@@ -35,7 +35,6 @@ export type IncidentContext = {
   readonly detectedAt: string;
   readonly startedAt: string;
   readonly detectionReason: string;
-  readonly suspectedRootCause: string | null;
   readonly metadata: Record<string, unknown>;
 };
 

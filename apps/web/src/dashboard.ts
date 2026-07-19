@@ -39,6 +39,7 @@ export function createDashboardHtml(config: DashboardConfig = resolveDashboardCo
           <a href="#overview" data-route="overview" class="active">Overview</a>
           <a href="#incidents" data-route="incidents">Incidents</a>
           <a href="#investigation" data-route="investigation">Investigation</a>
+          <a href="#history" data-route="history">History</a>
           <a href="#timeline" data-route="timeline">Tool Timeline</a>
           <a href="#evidence" data-route="evidence">Evidence</a>
           <a href="#langfuse" data-route="langfuse">Langfuse</a>
@@ -139,6 +140,19 @@ export function createDashboardHtml(config: DashboardConfig = resolveDashboardCo
             <span id="investigationStatusBadge" class="badge muted">No investigation loaded</span>
           </div>
           <div id="investigationDetail" class="investigation-grid"></div>
+        </section>
+
+
+
+        <section id="history" class="section-panel" data-section>
+          <div class="section-header">
+            <div>
+              <p class="eyebrow">Investigation history</p>
+              <h3>Persisted investigations</h3>
+            </div>
+            <button id="loadMoreHistoryButton" class="button ghost" type="button">Load more</button>
+          </div>
+          <div id="historyPanel" class="history-list"></div>
         </section>
 
         <section id="timeline" class="section-panel" data-section>
