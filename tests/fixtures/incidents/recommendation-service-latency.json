@@ -2,6 +2,5 @@
   "id": "beautycorp-rec-latency-2026-06-26",
   "title": "Recommendation latency spike after feature-store timeout deployment",
   "serviceName": "recommendation-service",
-  "severity": "sev2",
-  "suspectedRootCause": "Deployment rec-2026.06.1 changed feature-store timeout and retry behavior."
+  "severity": "sev2"
 }

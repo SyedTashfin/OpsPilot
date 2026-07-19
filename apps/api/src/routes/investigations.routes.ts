@@ -1,3 +1,4 @@
+import { investigationHistoryQuerySchema } from "@opspilot/contracts";
 import type { FastifyInstance } from "fastify";
 import type {
   InvestigationRepository,
@@ -21,6 +22,37 @@ export function registerInvestigationRoutes(
         }
         request.log.error({ error }, "Investigation failed");
         return sendApiError(reply, 500, "investigation_failed", "Investigation failed.");
+      }
+    },
+  );
+
+  app.get<{ Querystring: Record<string, string | undefined> }>(
+    "/api/investigations",
+    async (request, reply) => {
+      const parsed = investigationHistoryQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        return sendApiError(
+          reply,
+          400,
+          "invalid_investigation_history_query",
+          "Invalid investigation history query.",
+        );
+      }
+      try {
+        return await repository.listInvestigationHistory(parsed.data);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message.includes("Malformed investigation history cursor")
+        ) {
+          return sendApiError(
+            reply,
+            400,
+            "invalid_investigation_history_cursor",
+            "Invalid investigation history cursor.",
+          );
+        }
+        throw error;
       }
     },
   );
