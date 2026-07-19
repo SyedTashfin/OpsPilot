@@ -24,7 +24,12 @@
     "docker:down": "docker compose --env-file .env.example -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.langfuse.yml down",
     "rag:ingest": "tsx scripts/rag/ingest-runbooks.ts",
     "rag:search": "tsx scripts/rag/search-runbooks.ts",
-    "demo:investigation": "tsx scripts/demo/run-investigation.ts"
+    "demo:investigation": "tsx scripts/demo/run-investigation.ts",
+    "docs:check": "tsx scripts/ci/check-docs.ts",
+    "workflows:check": "tsx scripts/ci/check-workflows.ts",
+    "security:scan": "tsx scripts/ci/secret-scan.ts",
+    "test:db": "OPSPILOT_RUN_DB_TESTS=true vitest run packages/database/src/migrations.test.ts --reporter=verbose --no-file-parallelism && OPSPILOT_RUN_DB_TESTS=true vitest run apps/api/src/modules/investigations/investigation.integration.test.ts --reporter=verbose --no-file-parallelism",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
@@ -39,6 +44,7 @@
     "turbo": "^2.3.3",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "@playwright/test": "^1.54.2"
   }
 }

@@ -90,7 +90,7 @@ async function seedScenario(pool: pg.Pool): Promise<string> {
   await pool.query(
     `INSERT INTO runbooks (service_id, title, slug, body, source_path)
      VALUES ($1, 'Recommendation Service Latency Runbook', 'recommendation-service-latency',
-       'Symptoms: p95 latency above 1200ms, feature-store timeout errors, elevated retry count. Common root cause: deployment changes timeout budget or retry behavior.',
+       'Symptoms: p95 latency above 1200ms, feature-store timeout errors, elevated retry count. Diagnostic guidance: inspect timeout and retry configuration diffs, then correlate retry counts with feature-store timeout logs.',
        'test://recommendation-service-latency')
      ON CONFLICT (slug) DO UPDATE SET body = EXCLUDED.body, service_id = EXCLUDED.service_id;`,
     [serviceId],

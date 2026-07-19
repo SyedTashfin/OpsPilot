@@ -6,7 +6,6 @@ export type IncidentScenario = {
   readonly startedAt: string;
   readonly detectedAt: string;
   readonly detectionReason: string;
-  readonly suspectedRootCause: string;
   readonly affectedSignals: readonly string[];
 };
 
@@ -19,8 +18,6 @@ export const recommendationLatencyScenario = {
   detectedAt: "2026-06-26T09:58:00.000Z",
   detectionReason:
     "recommendation-service p95 latency exceeded 1200ms and feature-store timeout errors increased after deployment rec-2026.06.1.",
-  suspectedRootCause:
-    "Deployment rec-2026.06.1 changed feature-store timeout and retry behavior, causing retry amplification and elevated p95 latency.",
   affectedSignals: ["p95_latency_ms", "http_error_rate", "feature_store_timeout", "retry_count"],
 } as const satisfies IncidentScenario;
 
