@@ -1,4 +1,3 @@
-import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 import type pg from "pg";
 import { runMigrations } from "@opspilot/database";
@@ -17,6 +16,7 @@ import { registerInvestigationRoutes } from "./routes/investigations.routes.js";
 import { registerLLMRoutes } from "./routes/llm.routes.js";
 import { registerLogRoutes } from "./routes/logs.routes.js";
 import { registerRunbookRoutes } from "./routes/runbooks.routes.js";
+import { registerSecurity } from "./plugins/security.js";
 import { registerServiceRoutes } from "./routes/services.routes.js";
 import { DemoRepository } from "./modules/demo/demo.repository.js";
 import { IncidentRepository } from "./modules/incidents/incident.repository.js";
@@ -42,7 +42,7 @@ export async function buildServer(
     await runMigrations(pool);
   }
 
-  await app.register(cors, { origin: true });
+  registerSecurity(app, config);
 
   const services = new ServiceRepository(pool);
   const logs = new LogRepository(pool);

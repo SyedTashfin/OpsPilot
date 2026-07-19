@@ -48,3 +48,9 @@ GET /api/runbooks/search?q=feature%20store%20timeout&limit=5
 ## Embedding dimension
 
 `runbook_chunks.embedding` is `vector(768)`. The ingestion path validates every embedding dimension before insert and fails loudly if the configured embedding model returns a different dimension.
+
+## V1 index reconciliation
+
+Migrations `0006_drop_runbook_hnsw_index.sql` and `0008_drop_runbook_ivfflat_index.sql` reconcile the schema to the V1 exact-search implementation. Runtime retrieval disables index and bitmap scans inside the search transaction and orders directly by `c.embedding <=> $1::vector`; no application query references the removed ANN indexes. The vector column, chunks, documents, and embeddings remain intact.
+
+Rollback, if a future larger corpus needs ANN search again, is manual and forward-only in normal operations: add a new migration that recreates the selected pgvector index, for example `CREATE INDEX CONCURRENTLY ... USING ivfflat ...` or HNSW after validating recall on the target corpus. The application migration runner records forward migrations and does not auto-roll back applied SQL.

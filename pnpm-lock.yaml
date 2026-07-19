@@ -10,6 +10,9 @@ importers:
       "@eslint/js":
         specifier: ^9.18.0
         version: 9.39.4
+      "@playwright/test":
+        specifier: ^1.54.2
+        version: 1.54.2
       "@opspilot/database":
         specifier: workspace:^
         version: link:packages/database
@@ -91,6 +94,10 @@ importers:
         version: 4.22.4
 
   apps/web:
+    dependencies:
+      "@opspilot/contracts":
+        specifier: workspace:*
+        version: link:../../packages/contracts
     devDependencies:
       tsx:
         specifier: ^4.19.2
@@ -660,6 +667,16 @@ packages:
         integrity: sha512-VtAOaymWVfZcmZbp6E2mympDIHvyjXs/12LqWYjVw6qjrfF+VK+fyG33kChz3nnK+SU5/NeHOqrTEHS8sXO3OA==,
       }
     engines: { node: ^18.18.0 || ^20.9.0 || >=21.1.0 }
+
+
+  "@playwright/test@1.54.2":
+    resolution:
+      {
+        integrity: sha512-A+znathYxPf+72riFd1r1ovOLqsIIB0jKIoPjyK2kqEIe30/6jF6BC7QNluHuwUmsD2tv1XZVugN8GqfTMOxsA==,
+      }
+    engines: { node: ">=18" }
+    hasBin: true
+
 
   "@eslint/plugin-kit@0.4.1":
     resolution:
@@ -1596,6 +1613,14 @@ packages:
         integrity: sha512-PjDse7RzhcPkIJwy5t7KPWQSZ9cAbzQXcafsetQoD7sOJRQlGikNbx7yZp2OotDnJyrDcbyRq3Ttb18iYOqkxA==,
       }
 
+  fsevents@2.3.2:
+    resolution:
+      {
+        integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==,
+      }
+    engines: { node: ^8.16.0 || ^10.6.0 || >=11.0.0 }
+    os: [darwin]
+
   fsevents@2.3.3:
     resolution:
       {
@@ -1978,6 +2003,24 @@ packages:
         integrity: sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==,
       }
     hasBin: true
+
+
+  playwright-core@1.54.2:
+    resolution:
+      {
+        integrity: sha512-n5r4HFbMmWsB4twG7tJLDN9gmBUeSPcsBZiWSE4DnYz9mJMAFqr2ID7+eGC9kpEnxExJ1epttwR59LEWCk8mtA==,
+      }
+    engines: { node: ">=18" }
+    hasBin: true
+
+  playwright@1.54.2:
+    resolution:
+      {
+        integrity: sha512-Hu/BMoA1NAdRUuulyvQC0pEqZ4vQbGfn8f7wPXcnqQmM+zct9UliKxsIkLNmz/ku7LElUNqmaiv1TG/aL5ACsw==,
+      }
+    engines: { node: ">=18" }
+    hasBin: true
+
 
   postcss@8.5.15:
     resolution:
@@ -2626,6 +2669,10 @@ snapshots:
 
   "@eslint/object-schema@2.1.7": {}
 
+  "@playwright/test@1.54.2":
+    dependencies:
+      playwright: 1.54.2
+
   "@eslint/plugin-kit@0.4.1":
     dependencies:
       "@eslint/core": 0.17.0
@@ -3222,6 +3269,9 @@ snapshots:
 
   flatted@3.4.2: {}
 
+  fsevents@2.3.2:
+    optional: true
+
   fsevents@2.3.3:
     optional: true
 
@@ -3416,6 +3466,14 @@ snapshots:
       safe-stable-stringify: 2.5.0
       sonic-boom: 4.2.1
       thread-stream: 4.2.0
+
+  playwright-core@1.54.2: {}
+
+  playwright@1.54.2:
+    dependencies:
+      playwright-core: 1.54.2
+    optionalDependencies:
+      fsevents: 2.3.2
 
   postcss@8.5.15:
     dependencies:
