@@ -106,7 +106,7 @@ export class DemoRepository {
           incident.detectedAt,
           incident.startedAt,
           incident.detectionReason,
-          incident.suspectedRootCause,
+          null,
           JSON.stringify({
             scenarioId: incident.id,
             affectedSignals: incident.affectedSignals,
