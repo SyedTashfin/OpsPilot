@@ -1,5 +1,7 @@
 # OpsPilot
 
+[![CI](https://github.com/SyedTashfin/OpsPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/SyedTashfin/OpsPilot/actions/workflows/ci.yml)
+
 OpsPilot is a local-first AI operations copilot that investigates a synthetic production incident end-to-end: telemetry is generated, an incident is detected, runbooks are retrieved with RAG, a single LLM call produces a structured root-cause report, and the investigation is visualized in a dark engineering dashboard with optional Langfuse tracing.
 
 The project is intentionally narrow and production-shaped. It is built to demonstrate AI engineering, observability, deterministic workflow design, provider abstraction, and release-quality local infrastructure without pretending to be a full enterprise incident platform.
@@ -270,6 +272,8 @@ pnpm format:check
 pnpm docker:config
 pnpm docker:build
 ```
+
+The `lint`, `typecheck`, `test`, `build`, and `format:check` gates run automatically on every push and pull request via GitHub Actions (`.github/workflows/ci.yml`), including a DB integration test that runs the full investigation workflow against Postgres/pgvector.
 
 Additional RC smoke checks run:
 
